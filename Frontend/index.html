@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Nederlands Basisregistratie Dashboard</title>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+  <link rel="stylesheet" href="styles.css" />
+
+  <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7.3.0/turf.min.js"></script>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div class="brand">
+        <div class="brandText">
+          <div class="titleRow">
+            <span class="liveDot" aria-hidden="true"></span>
+            <div class="title" id="appTitle">Nederlands Basisregistratie Dashboard</div>
+            <button class="iconBtn" id="overviewBtn" type="button" title="Overzicht">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z" stroke="currentColor" stroke-width="1.6"/>
+                <path d="M12 10.5v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                <path d="M12 7.2h.01" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="headerRight">
+        <div class="langSwitcher">
+          <label class="langLabel" for="languageSelect" id="languageLabel">Taal</label>
+          <select id="languageSelect" class="langSelect" aria-label="Taal">
+            <option value="nl">NL</option>
+            <option value="en">EN</option>
+          </select>
+        </div>
+        <div class="rightLogo" title="Geonovum">
+          <img id="geonovumLogo"
+               src="Assets/GEONOVUM_LOGO.bmp"
+               alt="Geonovum"
+               data-srcs="Assets/GEONOVUM_LOGO.bmp,Assets/GEONOVUM_LOGO.BMP,Assets/GEONOVUM_LOGO.png,Assets/GEONOVUM_LOGO.PNG" />
+        </div>
+      </div>
+    </header>
+
+    <div id="content">
+      <aside id="sidebar">
+        <div class="sideHead">
+          <span id="sideHeadText">Bedieningspaneel</span>
+        </div>
+
+        <div class="sideBody">
+          <div class="card">
+            <div class="cardTitle">
+              <span id="areaSelectionTitle">Gebiedsselectie</span>
+              <span class="badge">CBS 2025</span>
+            </div>
+
+            <div class="selectedLine" id="selInfo" style="margin-top:0;margin-bottom:10px;"></div>
+
+            <label for="selProvincie" id="labelProvincie">Provincie</label>
+            <select id="selProvincie" disabled>
+              <option value="">Provincies laden…</option>
+            </select>
+
+            <div class="labelRow">
+              <label for="selGemeente" id="labelGemeente">Gemeente</label>
+              <button type="button" class="layerIconBtn" id="toggleGemeenteLayer" title="Gemeentelaag verbergen" aria-label="Gemeentelaag verbergen" aria-pressed="true">
+                <span class="srOnly">Gemeentelaag zichtbaar</span>
+                <svg class="iconEye" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="3.2"/></svg>
+                <svg class="iconEyeOff" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 6.3A11.6 11.6 0 0 1 12 6c6.5 0 10 6 10 6a17.3 17.3 0 0 1-4 4.3"/><path d="M6.2 6.7C3.7 8.3 2 12 2 12s3.5 6 10 6c1.5 0 2.8-.3 4-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
+              </button>
+            </div>
+            <select id="selGemeente" disabled>
+              <option value="">Selecteer eerst een provincie</option>
+            </select>
+
+            <div class="row2" style="margin-top:10px;">
+              <div>
+                <div class="labelRow" style="margin-top:0;">
+                  <label for="selWijk" id="labelWijk">Wijk</label>
+                  <button type="button" class="layerIconBtn" id="toggleWijkLayer" title="Wijklaag verbergen" aria-label="Wijklaag verbergen" aria-pressed="true">
+                    <span class="srOnly">Wijklaag zichtbaar</span>
+                    <svg class="iconEye" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="3.2"/></svg>
+                    <svg class="iconEyeOff" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 6.3A11.6 11.6 0 0 1 12 6c6.5 0 10 6 10 6a17.3 17.3 0 0 1-4 4.3"/><path d="M6.2 6.7C3.7 8.3 2 12 2 12s3.5 6 10 6c1.5 0 2.8-.3 4-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
+                  </button>
+                </div>
+                <select id="selWijk" disabled>
+                  <option value="">Selecteer eerst een gemeente</option>
+                </select>
+              </div>
+              <div>
+                <div class="labelRow" style="margin-top:0;">
+                  <label for="selBuurt" id="labelBuurt">Buurt</label>
+                  <button type="button" class="layerIconBtn" id="toggleBuurtLayer" title="Buurtlaag verbergen" aria-label="Buurtlaag verbergen" aria-pressed="true">
+                    <span class="srOnly">Buurtlaag zichtbaar</span>
+                    <svg class="iconEye" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="3.2"/></svg>
+                    <svg class="iconEyeOff" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 6.3A11.6 11.6 0 0 1 12 6c6.5 0 10 6 10 6a17.3 17.3 0 0 1-4 4.3"/><path d="M6.2 6.7C3.7 8.3 2 12 2 12s3.5 6 10 6c1.5 0 2.8-.3 4-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
+                  </button>
+                </div>
+                <select id="selBuurt" disabled>
+                  <option value="">Selecteer eerst een wijk</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="hint" id="areaHint" style="margin-top:10px;">
+              Begin met een provincie. Selecteer daarna een gemeente, dan een wijk en daarna een buurt. Je kunt ook direct op zichtbare grenzen op de kaart klikken.
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="cardTitle">
+              <span id="registriesTitle">Registraties</span>
+              <span class="badge">BGT / BAG / BRO</span>
+            </div>
+
+            <div class="bagGroup is-open" id="bagAccordion">
+              <button type="button" class="bagAccordionSummary" id="bagAccordionToggle" aria-label="BAG objecten tonen of verbergen" aria-expanded="true" aria-controls="bagAccordionPanel">
+                <span class="bagAccordionTitle" id="bagAccordionTitle">BAG</span>
+                <span class="bagChevron" aria-hidden="true">
+                  <svg viewBox="0 0 16 16"><path d="M6 3.5 10.5 8 6 12.5"/></svg>
+                </span>
+              </button>
+              <div class="bagAccordionPanel" id="bagAccordionPanel">
+                <div class="bagObjectList">
+                  <div class="bagObjectItem">
+                    <div class="bagObjectName" id="bagNamePand">Pand</div>
+                    <label class="toggle" title="Inschakelen"><input type="checkbox" id="toggleBagPand" aria-label="BAG pand inschakelen"></label>
+                  </div>
+
+                  <div class="bagObjectItem">
+                    <div class="bagObjectName" id="bagNameVerblijfsobject">Verblijfsobject</div>
+                    <label class="toggle" title="Inschakelen"><input type="checkbox" id="toggleBagVerblijfsobject" aria-label="BAG verblijfsobject inschakelen"></label>
+                  </div>
+
+                  <div class="bagObjectItem">
+                    <div class="bagObjectName" id="bagNameAdres">Adres</div>
+                    <label class="toggle" title="Inschakelen"><input type="checkbox" id="toggleBagAdres" aria-label="BAG adres inschakelen"></label>
+                  </div>
+
+                  <div class="bagObjectItem">
+                    <div class="bagObjectName" id="bagNameWoonplaats">Woonplaats</div>
+                    <label class="toggle" title="Inschakelen"><input type="checkbox" id="toggleBagWoonplaats" aria-label="BAG woonplaats inschakelen"></label>
+                  </div>
+
+                  <div class="bagObjectItem">
+                    <div class="bagObjectName" id="bagNameStandplaats">Standplaats</div>
+                    <label class="toggle" title="Inschakelen"><input type="checkbox" id="toggleBagStandplaats" aria-label="BAG standplaats inschakelen"></label>
+                  </div>
+
+                  <div class="bagObjectItem">
+                    <div class="bagObjectName" id="bagNameLigplaats">Ligplaats</div>
+                    <label class="toggle" title="Inschakelen"><input type="checkbox" id="toggleBagLigplaats" aria-label="BAG ligplaats inschakelen"></label>
+                  </div>
+
+                  <div class="bagObjectItem is-disabled">
+                    <div class="bagObjectName" id="bagNameOpenbareRuimte">Openbare ruimte</div>
+                    <label class="toggle" title="Geen aparte kaartlaag in BAG OGC v2"><input type="checkbox" disabled aria-label="Openbare ruimte niet als aparte kaartlaag beschikbaar"></label>
+                  </div>
+
+                  <div class="bagObjectItem is-disabled">
+                    <div class="bagObjectName" id="bagNameNummeraanduiding">Nummeraanduiding</div>
+                    <label class="toggle" title="Gebruik Adres in BAG OGC v2"><input type="checkbox" disabled aria-label="Nummeraanduiding niet als aparte kaartlaag beschikbaar"></label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bagGroup" id="bgtAccordion" style="margin-top:10px;">
+              <button type="button" class="bagAccordionSummary" id="bgtAccordionToggle" aria-label="BGT objecten tonen of verbergen" aria-expanded="false" aria-controls="bgtAccordionPanel">
+                <span class="bagAccordionTitle" id="bgtAccordionTitle">BGT</span>
+                <span class="bagChevron" aria-hidden="true">
+                  <svg viewBox="0 0 16 16"><path d="M6 3.5 10.5 8 6 12.5"/></svg>
+                </span>
+              </button>
+              <div class="bagAccordionPanel" id="bgtAccordionPanel">
+                <div class="bagObjectList">
+                  <div class="bagObjectItem">
+                    <div class="bagObjectName" id="bgtNameWegdeel">Wegdeel</div>
+                    <label class="toggle" title="Inschakelen"><input type="checkbox" id="toggleBgtWegdeel" aria-label="BGT wegdeel inschakelen"></label>
+                  </div>
+
+                  <div class="bagObjectItem">
+                    <div class="bagObjectName" id="bgtNameWaterdeel">Waterdeel</div>
+                    <label class="toggle" title="Inschakelen"><input type="checkbox" id="toggleBgtWaterdeel" aria-label="BGT waterdeel inschakelen"></label>
+                  </div>
+
+                  <div class="bagObjectItem">
+                    <div class="bagObjectName" id="bgtNameBegroeid">Begroeid terreindeel</div>
+                    <label class="toggle" title="Inschakelen"><input type="checkbox" id="toggleBgtBegroeid" aria-label="BGT begroeid terreindeel inschakelen"></label>
+                  </div>
+
+                  <div class="bagObjectItem">
+                    <div class="bagObjectName" id="bgtNameOnbegroeid">Onbegroeid terreindeel</div>
+                    <label class="toggle" title="Inschakelen"><input type="checkbox" id="toggleBgtOnbegroeid" aria-label="BGT onbegroeid terreindeel inschakelen"></label>
+                  </div>
+
+                  <div class="bagObjectItem">
+                    <div class="bagObjectName" id="bgtNameSpoor">Spoor</div>
+                    <label class="toggle" title="Inschakelen"><input type="checkbox" id="toggleBgtSpoor" aria-label="BGT spoor inschakelen"></label>
+                  </div>
+                </div>
+                <div class="hint" id="bgtHint" style="padding:0 12px 12px;">
+                  BGT wordt als featurelaag geladen. Op provincie- en gemeentelijk niveau wordt alleen een samenvatting getoond; op wijk- en buurtniveau ook de kaartlaag.
+                </div>
+              </div>
+            </div>
+
+            <div class="registryItem" style="margin-top:10px;">
+              <div class="registryLeft">
+                <div class="registryName">BRO</div>
+                <div class="registryDesc" id="descBro">Ondergrond / grondwatergebruik &amp; onderzoeken (vergrendeld)</div>
+              </div>
+              <label class="toggle" title="Vergrendeld"><input type="checkbox" disabled aria-label="BRO niet beschikbaar"></label>
+            </div>
+
+          </div>
+        </div>
+      </aside>
+
+      <section id="mapCard">
+        <div id="map"></div>
+
+        <div class="card" id="bagSummaryCard" style="display:none;">
+          <div class="cardTitle">
+            <span id="bagSummaryTitle">Gegevenssamenvatting</span>
+            <span class="badge" id="bagSummaryBadge">gegevens</span>
+          </div>
+          <div class="hint" id="bagSummaryBody">Kies een gebied en schakel BAG of BGT in.</div>
+        </div>
+
+        <div class="legend">
+          <div class="legendTitle"><span id="legendTitleText">Legenda</span></div>
+          <div class="legendSection" id="legendBoundarySection">
+            <div class="legendSectionTitle" id="legendBoundaryGroup">Grenzen</div>
+            <div class="legendRow" id="legendNationalRow"><span class="swatchLine swBlue"></span><span id="legendNational">Nationale grens</span></div>
+            <div class="legendRow" id="legendProvinceRow"><span class="swatchLine swRed"></span><span id="legendProvince">Provinciegrens</span></div>
+            <div class="legendRow" id="legendMunicipalityRow"><span class="swatchLine swBlack"></span><span id="legendMunicipality">Gemeentegrens (CBS)</span></div>
+            <div class="legendRow" id="legendWijkRow"><span class="swatchLine swOrange"></span><span id="legendWijk">Wijkgrens (CBS)</span></div>
+            <div class="legendRow" id="legendBuurtRow"><span class="swatchLine swPurple"></span><span id="legendBuurt">Buurtgrens (CBS)</span></div>
+          </div>
+          <div class="legendSection" id="legendDataSection" style="display:none;">
+            <div class="legendSectionTitle" id="legendDataGroup">Gegevenslagen</div>
+            <div class="legendRow" id="legendBagRow" style="display:none;"><span class="swatchPolygon"></span><span id="legendBag">BAG objecten</span></div>
+            <div class="legendRow" id="legendBgtRow" style="display:none;"><span class="swatchPolygon" style="border-color:#475569;background:rgba(148,163,184,0.32);"></span><span id="legendBgt">BGT objecten</span></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="modalBackdrop" id="overviewModal" role="dialog" aria-label="Overzichtsdialoog" aria-modal="true">
+    <div class="modalCard">
+      <div class="modalHead">
+        <div class="modalTitle">
+          <span style="opacity:.9;">ⓘ</span>
+          <span id="overviewTitle">Overzicht</span>
+        </div>
+        <button class="modalClose" id="overviewClose" type="button">Sluiten</button>
+      </div>
+      <div class="modalBody">
+        <div id="overviewIntro" style="color:var(--muted);">
+          Dashboardprototype voor het verkennen van Nederlandse basisregistraties (BGT, BAG, BRO) via administratieve selecties.
+        </div>
+
+        <h4 id="howToTitle">Gebruik</h4>
+        <ul>
+          <li id="howTo1">Begin met het selecteren van een <b>provincie</b> in de lijst, of klik op een provincie op de kaart.</li>
+          <li id="howTo2">Na het selecteren van een provincie worden de gemeenten binnen die provincie beschikbaar.</li>
+          <li id="howTo3">Na het selecteren van een gemeente worden de wijken beschikbaar. Na het selecteren van een wijk worden de buurten beschikbaar.</li>
+          <li id="howTo4">Gebruik <b>Home</b> om terug te keren naar het nationale overzicht en de hiërarchie te wissen. Gebruik <b>Basiskaart</b> om de achtergrond te wisselen.</li>
+        </ul>
+
+        <h4 id="layersTitle">Administratieve lagen</h4>
+        <ul>
+          <li id="layers1">Provincie-, gemeente-, wijk- en buurtgrenzen in deze versie worden geladen uit de CBS 2025-hiërarchie.</li>
+          <li id="layers2">Nationale en provinciale referentiegrenzen uit de PDOK/Kadaster-basisstijl blijven daaronder zichtbaar.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  
+  <script src="app.js"></script>
+</body>
+</html>
