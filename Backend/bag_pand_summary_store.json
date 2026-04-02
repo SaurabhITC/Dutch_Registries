@@ -1,0 +1,15 @@
+{
+  "created_at": 1775128726.380873,
+  "source": "bag_pand_precomputed_summary",
+  "municipalities": {
+    "GM0034": 132547,
+    "GM0050": 21945,
+    "GM0171": 38453,
+    "GM0184": 14275,
+    "GM0303": 33964,
+    "GM0995": 59787
+  },
+  "provinces": {
+    "PV24": 300971
+  }
+}

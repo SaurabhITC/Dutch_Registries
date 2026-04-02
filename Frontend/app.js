@@ -1451,6 +1451,22 @@
         };
       }
 
+      async function loadBagSummaryForArea(key, areaFeature, level){
+        const cfg = BAG_COLLECTIONS[key];
+        const statcode = String(areaFeature?.properties?._statcode || '').trim();
+        if (!cfg || !statcode || !level) return { count: 0 };
+
+        if (key === 'pand'){
+          const params = new URLSearchParams({ level, statcode });
+          const summary = await fetchBackendJson(`/api/bag/pand/summary?${params.toString()}`, 60000);
+          return {
+            count: Number.isFinite(summary?.count) ? summary.count : 0
+          };
+        }
+
+        return { count: null };
+      }
+
       async function loadBgtFeaturesForArea(key, areaFeature, level){
         const cfg = BGT_COLLECTIONS[key];
         const bbox = bboxStringForFeature(areaFeature);
@@ -1667,15 +1683,60 @@
             continue;
           }
 
-          const cacheKey = bagCacheKey(key, level, areaFeature.properties?._statcode || '');
-          let fc = bagFeatureCache.get(cacheKey);
           const label = collectionLabel(BAG_COLLECTIONS[key]);
 
-          if (!fc){
-            if (showMap){
-              setBagKeyData(key, { type:'FeatureCollection', features: [] });
-              setBagKeyVisibility(key, false);
+          if (!showMap){
+            setBagKeyData(key, { type:'FeatureCollection', features: [] });
+            setBagKeyVisibility(key, false);
+
+            if (key === 'pand'){
+              const cacheKey = `${bagCacheKey(key, level, areaFeature.properties?._statcode || '')}:summary`;
+              let summaryEntry = bagFeatureCache.get(cacheKey);
+
+              if (!summaryEntry){
+                const attemptResult = await loadWithAutoRetry({
+                  loadFn: () => loadBagSummaryForArea(key, areaFeature, level),
+                  onRetry: ({ attempt, totalAttempts, delayMs, error }) => {
+                    console.warn(`BAG summary load failed for ${key}; retrying`, error);
+                    if (reqId !== bagFeatureRequestId) return;
+                    renderBagLayerSummarySkeleton(level, activeKeys, showMap, retryAttemptMessage(label, attempt, totalAttempts, delayMs));
+                  }
+                });
+
+                if (reqId !== bagFeatureRequestId) return;
+
+                if (attemptResult.ok){
+                  summaryEntry = {
+                    type:'FeatureCollection',
+                    features: [],
+                    _summaryCount: attemptResult.data?.count
+                  };
+                  bagFeatureCache.set(cacheKey, summaryEntry);
+                } else {
+                  console.warn(`BAG summary load failed for ${key}`, attemptResult.error);
+                  failedKeys.push(label);
+                  rows.push({ label, error: true });
+                  countsByKey[key] = 0;
+                  continue;
+                }
+              }
+
+              const count = Number.isFinite(summaryEntry?._summaryCount) ? summaryEntry._summaryCount : 0;
+              countsByKey[key] = count;
+              rows.push({ label, count });
+            } else {
+              countsByKey[key] = 0;
+              rows.push({ label, count: '—' });
             }
+            continue;
+          }
+
+          const cacheKey = bagCacheKey(key, level, areaFeature.properties?._statcode || '');
+          let fc = bagFeatureCache.get(cacheKey);
+
+          if (!fc){
+            setBagKeyData(key, { type:'FeatureCollection', features: [] });
+            setBagKeyVisibility(key, false);
 
             const attemptResult = await loadWithAutoRetry({
               loadFn: () => loadBagFeaturesForArea(key, areaFeature, level),
@@ -1708,7 +1769,7 @@
 
           const count = Number.isFinite(fc._summaryCount) ? fc._summaryCount : (fc.features || []).length;
           countsByKey[key] = count;
-          setBagKeyVisibility(key, showMap && (fc.features || []).length > 0);
+          setBagKeyVisibility(key, (fc.features || []).length > 0);
 
           rows.push({ label, count });
           if (fc._truncated) partialKeys.push(label);

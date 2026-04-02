@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import re
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
@@ -34,8 +36,12 @@ BUURT_URL = (
 )
 BAG_PAND_URL = f"{BAG_BASE}/collections/pand/items?f=json&limit=1000"
 
+SUMMARY_FILE = Path(__file__).resolve().parent / "bag_pand_summary_store.json"
+SUMMARY_MAX_AGE_SECONDS = 24 * 60 * 60
+
 CacheValue = Tuple[float, Any]
 _cache: Dict[str, CacheValue] = {}
+_bag_pand_summary_store: Optional[Dict[str, Any]] = None
 
 
 def cache_get(key: str) -> Optional[Any]:
@@ -51,6 +57,67 @@ def cache_get(key: str) -> Optional[Any]:
 
 def cache_set(key: str, value: Any, ttl_seconds: int) -> None:
     _cache[key] = (time.time() + ttl_seconds, value)
+
+
+def empty_bag_pand_summary_store() -> Dict[str, Any]:
+    return {
+        "created_at": None,
+        "source": "bag_pand_precomputed_summary",
+        "municipalities": {},
+        "provinces": {},
+    }
+
+
+def load_bag_pand_summary_store() -> Dict[str, Any]:
+    global _bag_pand_summary_store
+
+    if not SUMMARY_FILE.exists():
+        _bag_pand_summary_store = empty_bag_pand_summary_store()
+        return _bag_pand_summary_store
+
+    try:
+        with SUMMARY_FILE.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        if not isinstance(data, dict):
+            data = empty_bag_pand_summary_store()
+
+        data.setdefault("created_at", None)
+        data.setdefault("source", "bag_pand_precomputed_summary")
+        data.setdefault("municipalities", {})
+        data.setdefault("provinces", {})
+
+        _bag_pand_summary_store = data
+        return _bag_pand_summary_store
+
+    except Exception as e:
+        print(f"[summary-store] failed to load summary file: {e}")
+        _bag_pand_summary_store = empty_bag_pand_summary_store()
+        return _bag_pand_summary_store
+
+
+def save_bag_pand_summary_store(data: Dict[str, Any]) -> Dict[str, Any]:
+    global _bag_pand_summary_store
+
+    SUMMARY_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+    with SUMMARY_FILE.open("w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+    _bag_pand_summary_store = data
+    return _bag_pand_summary_store
+
+
+def is_bag_pand_summary_store_fresh(data: Optional[Dict[str, Any]]) -> bool:
+    if not data:
+        return False
+
+    created_at = data.get("created_at")
+    if not created_at:
+        return False
+
+    age = time.time() - created_at
+    return age < SUMMARY_MAX_AGE_SECONDS
 
 
 async def fetch_json(url: str, *, ttl_seconds: int = 3600) -> Any:
@@ -183,6 +250,26 @@ def preprocess_features(fc: Dict[str, Any], kind: str) -> Dict[str, Any]:
     return out
 
 
+def find_province_statcode_for_municipality(
+    municipality_feature: Dict[str, Any],
+    province_features: List[Dict[str, Any]],
+) -> str:
+    try:
+        municipality_geom = shape(municipality_feature["geometry"])
+        probe = municipality_geom.representative_point()
+
+        for province_feature in province_features:
+            province_geom = shape(province_feature["geometry"])
+            if province_geom.contains(probe) or province_geom.intersects(probe):
+                return str(
+                    province_feature.get("properties", {}).get("_statcode", "")
+                ).strip().upper()
+    except Exception:
+        return ""
+
+    return ""
+
+
 async def load_admin_data() -> Dict[str, Any]:
     cache_key = "admin_data_v3"
     cached = cache_get(cache_key)
@@ -199,9 +286,6 @@ async def load_admin_data() -> Dict[str, Any]:
     wijken = preprocess_features(wijk_raw, "wijk")
     buurten = preprocess_features(buurt_raw, "buurt")
 
-    province_by_statcode = {
-        f["properties"]["_statcode"]: f for f in provincies["features"]
-    }
     gm_to_province: Dict[str, str] = {}
 
     for feature in gemeenten["features"]:
@@ -210,19 +294,10 @@ async def load_admin_data() -> Dict[str, Any]:
         if not statcode.startswith("GM"):
             continue
 
-        matched_pv = ""
-        provinciecode = props.get("provinciecode") or props.get("pv_code") or props.get("pvcode")
-
-        if provinciecode:
-            candidate_codes = [
-                str(provinciecode),
-                f"PV{str(provinciecode).zfill(2)}",
-                f"PV{str(provinciecode)}",
-            ]
-            for code in candidate_codes:
-                if code in province_by_statcode:
-                    matched_pv = code
-                    break
+        matched_pv = find_province_statcode_for_municipality(
+            feature,
+            provincies["features"],
+        )
 
         props["_pvstatcode"] = matched_pv
         gm_to_province[statcode] = matched_pv
@@ -285,6 +360,79 @@ def bbox_from_feature(feature: Dict[str, Any]) -> str:
     return f"{minx},{miny},{maxx},{maxy}"
 
 
+async def count_bag_pand_for_area(level: str, statcode: str) -> int:
+    area_feature = await get_area_feature(level, statcode)
+    bbox = bbox_from_feature(area_feature)
+    url = f"{BAG_PAND_URL}&bbox={bbox}"
+
+    cache_key = f"bag_pand_summary::{level.strip().lower()}::{statcode.strip().upper()}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return int(cached)
+
+    raw_fc = await fetch_all_features(url, ttl_seconds=15 * 60)
+    count = sum(
+        1
+        for f in raw_fc.get("features", []) or []
+        if feature_intersects_area(f, area_feature)
+    )
+
+    cache_set(cache_key, count, 15 * 60)
+    return count
+
+
+async def build_bag_pand_summary_store(
+    province_statcode: Optional[str] = None,
+) -> Dict[str, Any]:
+    store = empty_bag_pand_summary_store()
+    data = await load_admin_data()
+
+    municipalities: Dict[str, int] = {}
+    provinces: Dict[str, int] = {}
+    only_province = str(province_statcode or "").strip().upper()
+
+    for feature in data["gemeenten"]["features"]:
+        props = feature.get("properties", {}) or {}
+        statcode = str(props.get("_statcode", "")).strip().upper()
+
+        if not statcode.startswith("GM"):
+            continue
+
+        pv_statcode = str(props.get("_pvstatcode", "")).strip().upper()
+        if only_province and pv_statcode != only_province:
+            continue
+
+        count = await count_bag_pand_for_area("municipality", statcode)
+        municipalities[statcode] = count
+
+        if pv_statcode:
+            provinces[pv_statcode] = provinces.get(pv_statcode, 0) + count
+
+    store["municipalities"] = municipalities
+    store["provinces"] = provinces
+    store["created_at"] = time.time()
+
+    save_bag_pand_summary_store(store)
+    return store
+
+
+async def ensure_bag_pand_summary_store() -> Dict[str, Any]:
+    data = load_bag_pand_summary_store()
+
+    if is_bag_pand_summary_store_fresh(data):
+        return data
+
+    try:
+        return await build_bag_pand_summary_store()
+    except Exception as e:
+        print(f"[summary-store] rebuild failed: {e}")
+
+        if data and data.get("municipalities"):
+            return data
+
+        raise
+
+
 app = FastAPI(title=APP_TITLE, version=APP_VERSION)
 
 app.add_middleware(
@@ -294,6 +442,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+async def startup_load_bag_pand_summary_store() -> None:
+    await load_admin_data()
+    load_bag_pand_summary_store()
 
 
 @app.get("/health")
@@ -378,6 +531,61 @@ async def get_buurten(
 async def get_all_areas() -> Dict[str, Any]:
     return await load_admin_data()
 
+
+
+
+@app.get("/api/bag/pand/summary")
+async def get_bag_pand_summary(
+    level: str = Query(...),
+    statcode: str = Query(...),
+) -> Dict[str, Any]:
+    level_norm = (level or "").strip().lower()
+    statcode_norm = (statcode or "").strip().upper()
+
+    if level_norm in {"municipality", "province"}:
+        store = await ensure_bag_pand_summary_store()
+
+        if level_norm == "municipality":
+            count = store.get("municipalities", {}).get(statcode_norm)
+        else:
+            count = store.get("provinces", {}).get(statcode_norm)
+
+        if count is None:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    f"No precomputed BAG pand summary found for "
+                    f"level={level_norm}, statcode={statcode_norm}"
+                ),
+            )
+
+        return {
+            "level": level_norm,
+            "statcode": statcode_norm,
+            "count": int(count),
+        }
+
+    count = await count_bag_pand_for_area(level_norm, statcode_norm)
+    return {
+        "level": level_norm,
+        "statcode": statcode_norm,
+        "count": count,
+    }
+
+
+@app.post("/api/bag/pand/summary/rebuild")
+async def rebuild_bag_pand_summary(
+    province_statcode: Optional[str] = Query(default=None),
+) -> Dict[str, Any]:
+    store = await build_bag_pand_summary_store(
+        province_statcode=province_statcode
+    )
+    return {
+        "ok": True,
+        "created_at": store.get("created_at"),
+        "municipality_count": len(store.get("municipalities", {})),
+        "province_count": len(store.get("provinces", {})),
+    }
 
 @app.get("/api/bag/pand")
 async def get_bag_pand(
