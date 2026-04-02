@@ -38,6 +38,7 @@ BAG_PAND_URL = f"{BAG_BASE}/collections/pand/items?f=json&limit=1000"
 
 SUMMARY_FILE = Path(__file__).resolve().parent / "bag_pand_summary_store.json"
 SUMMARY_MAX_AGE_SECONDS = 24 * 60 * 60
+SUMMARY_DATASET_KEY = "bag_pand"
 
 CacheValue = Tuple[float, Any]
 _cache: Dict[str, CacheValue] = {}
@@ -59,13 +60,172 @@ def cache_set(key: str, value: Any, ttl_seconds: int) -> None:
     _cache[key] = (time.time() + ttl_seconds, value)
 
 
-def empty_bag_pand_summary_store() -> Dict[str, Any]:
+
+
+def get_cached_admin_data() -> Optional[Dict[str, Any]]:
+    cached = cache_get("admin_data_v3")
+    return cached if isinstance(cached, dict) else None
+
+
+def cached_municipality_to_province_map() -> Dict[str, str]:
+    admin_data = get_cached_admin_data() or {}
+    mapping: Dict[str, str] = {}
+
+    for feature in admin_data.get("gemeenten", {}).get("features", []) or []:
+        props = feature.get("properties", {}) or {}
+        gm_statcode = str(props.get("_statcode", "")).strip().upper()
+        pv_statcode = str(props.get("_pvstatcode", "")).strip().upper()
+
+        if gm_statcode.startswith("GM") and pv_statcode.startswith("PV"):
+            mapping[gm_statcode] = pv_statcode
+
+    return mapping
+
+
+def normalize_province_summary_entry(value: Any) -> Dict[str, Any]:
+    if isinstance(value, dict):
+        count = int(value.get("count") or 0)
+        municipalities_raw = value.get("municipalities", {}) or {}
+    else:
+        count = int(value or 0)
+        municipalities_raw = {}
+
+    municipalities: Dict[str, int] = {}
+    if isinstance(municipalities_raw, dict):
+        for gm_statcode, municipality_count in municipalities_raw.items():
+            municipalities[str(gm_statcode).strip().upper()] = int(municipality_count or 0)
+
+    return {
+        "count": count,
+        "municipalities": municipalities,
+    }
+
+
+def empty_summary_dataset(*, source: str) -> Dict[str, Any]:
     return {
         "created_at": None,
-        "source": "bag_pand_precomputed_summary",
-        "municipalities": {},
+        "source": source,
         "provinces": {},
     }
+
+
+def empty_bag_pand_summary_store() -> Dict[str, Any]:
+    return {
+        "version": 2,
+        "datasets": {
+            SUMMARY_DATASET_KEY: empty_summary_dataset(
+                source="bag_pand_precomputed_summary"
+            )
+        },
+    }
+
+
+def normalize_summary_store(data: Any) -> Dict[str, Any]:
+    if not isinstance(data, dict):
+        data = empty_bag_pand_summary_store()
+
+    # Migrate the legacy flat BAG-pand-only store into the new multi-dataset structure.
+    if "datasets" not in data:
+        legacy_dataset = empty_summary_dataset(source="bag_pand_precomputed_summary")
+        legacy_dataset["created_at"] = data.get("created_at")
+        legacy_dataset["source"] = data.get(
+            "source", "bag_pand_precomputed_summary"
+        )
+        legacy_dataset["municipalities"] = dict(data.get("municipalities", {}) or {})
+        legacy_dataset["provinces"] = dict(data.get("provinces", {}) or {})
+
+        data = {
+            "version": 2,
+            "datasets": {
+                SUMMARY_DATASET_KEY: legacy_dataset,
+            },
+        }
+
+    data["version"] = 2
+
+    datasets = data.get("datasets")
+    if not isinstance(datasets, dict):
+        datasets = {}
+        data["datasets"] = datasets
+
+    gm_to_pv = cached_municipality_to_province_map()
+    normalized_datasets: Dict[str, Dict[str, Any]] = {}
+
+    for dataset_key, dataset_value in datasets.items():
+        dataset = dataset_value if isinstance(dataset_value, dict) else {}
+        provinces_raw = dataset.get("provinces", {}) or {}
+        legacy_municipalities_raw = dataset.get("municipalities", {}) or {}
+
+        normalized_provinces: Dict[str, Dict[str, Any]] = {}
+        if isinstance(provinces_raw, dict):
+            for province_statcode, province_value in provinces_raw.items():
+                normalized_provinces[str(province_statcode).strip().upper()] = (
+                    normalize_province_summary_entry(province_value)
+                )
+
+        if isinstance(legacy_municipalities_raw, dict):
+            for municipality_statcode, municipality_count in legacy_municipalities_raw.items():
+                gm_statcode = str(municipality_statcode).strip().upper()
+                province_statcode = gm_to_pv.get(gm_statcode, "__UNASSIGNED__")
+
+                province_entry = normalized_provinces.setdefault(
+                    province_statcode,
+                    normalize_province_summary_entry({"count": 0, "municipalities": {}}),
+                )
+                province_entry["municipalities"][gm_statcode] = int(municipality_count or 0)
+
+        normalized_datasets[str(dataset_key)] = {
+            "created_at": dataset.get("created_at"),
+            "source": dataset.get("source") or f"{dataset_key}_precomputed_summary",
+            "provinces": normalized_provinces,
+        }
+
+    if SUMMARY_DATASET_KEY not in normalized_datasets:
+        normalized_datasets[SUMMARY_DATASET_KEY] = empty_summary_dataset(
+            source="bag_pand_precomputed_summary"
+        )
+
+    data["datasets"] = normalized_datasets
+    return data
+
+
+def get_summary_dataset(
+    data: Optional[Dict[str, Any]],
+    dataset_key: str,
+) -> Dict[str, Any]:
+    normalized = normalize_summary_store(data or empty_bag_pand_summary_store())
+    dataset = normalized["datasets"].get(dataset_key)
+    if not isinstance(dataset, dict):
+        dataset = empty_summary_dataset(source=f"{dataset_key}_precomputed_summary")
+        normalized["datasets"][dataset_key] = dataset
+    return dataset
+
+
+def get_dataset_province_count(
+    dataset: Dict[str, Any],
+    province_statcode: str,
+) -> Optional[int]:
+    province_entry = (dataset.get("provinces", {}) or {}).get(province_statcode)
+    if not isinstance(province_entry, dict):
+        return None
+    count = province_entry.get("count")
+    return int(count) if count is not None else None
+
+
+def get_dataset_municipality_count(
+    dataset: Dict[str, Any],
+    municipality_statcode: str,
+) -> Optional[int]:
+    provinces = dataset.get("provinces", {}) or {}
+    for province_entry in provinces.values():
+        if not isinstance(province_entry, dict):
+            continue
+
+        municipality_counts = province_entry.get("municipalities", {}) or {}
+        if municipality_statcode in municipality_counts:
+            return int(municipality_counts[municipality_statcode])
+
+    return None
 
 
 def load_bag_pand_summary_store() -> Dict[str, Any]:
@@ -79,15 +239,7 @@ def load_bag_pand_summary_store() -> Dict[str, Any]:
         with SUMMARY_FILE.open("r", encoding="utf-8") as f:
             data = json.load(f)
 
-        if not isinstance(data, dict):
-            data = empty_bag_pand_summary_store()
-
-        data.setdefault("created_at", None)
-        data.setdefault("source", "bag_pand_precomputed_summary")
-        data.setdefault("municipalities", {})
-        data.setdefault("provinces", {})
-
-        _bag_pand_summary_store = data
+        _bag_pand_summary_store = normalize_summary_store(data)
         return _bag_pand_summary_store
 
     except Exception as e:
@@ -100,19 +252,19 @@ def save_bag_pand_summary_store(data: Dict[str, Any]) -> Dict[str, Any]:
     global _bag_pand_summary_store
 
     SUMMARY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    normalized = normalize_summary_store(data)
 
     with SUMMARY_FILE.open("w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+        json.dump(normalized, f, ensure_ascii=False, indent=2)
 
-    _bag_pand_summary_store = data
+    _bag_pand_summary_store = normalized
     return _bag_pand_summary_store
 
 
 def is_bag_pand_summary_store_fresh(data: Optional[Dict[str, Any]]) -> bool:
-    if not data:
-        return False
+    dataset = get_summary_dataset(data, SUMMARY_DATASET_KEY)
 
-    created_at = data.get("created_at")
+    created_at = dataset.get("created_at")
     if not created_at:
         return False
 
@@ -381,56 +533,83 @@ async def count_bag_pand_for_area(level: str, statcode: str) -> int:
     return count
 
 
+
+
 async def build_bag_pand_summary_store(
     province_statcode: Optional[str] = None,
 ) -> Dict[str, Any]:
-    store = empty_bag_pand_summary_store()
     data = await load_admin_data()
+    store = load_bag_pand_summary_store()
+    dataset = get_summary_dataset(store, SUMMARY_DATASET_KEY)
 
-    municipalities: Dict[str, int] = {}
-    provinces: Dict[str, int] = {}
     only_province = str(province_statcode or "").strip().upper()
+    affected_municipalities: Dict[str, int] = {}
+    affected_provinces: Dict[str, int] = {}
+    rebuilt_provinces: Dict[str, Dict[str, Any]] = {}
 
     for feature in data["gemeenten"]["features"]:
         props = feature.get("properties", {}) or {}
-        statcode = str(props.get("_statcode", "")).strip().upper()
+        municipality_statcode = str(props.get("_statcode", "")).strip().upper()
 
-        if not statcode.startswith("GM"):
+        if not municipality_statcode.startswith("GM"):
             continue
 
         pv_statcode = str(props.get("_pvstatcode", "")).strip().upper()
         if only_province and pv_statcode != only_province:
             continue
+        if not pv_statcode:
+            continue
 
-        count = await count_bag_pand_for_area("municipality", statcode)
-        municipalities[statcode] = count
+        count = await count_bag_pand_for_area("municipality", municipality_statcode)
+        affected_municipalities[municipality_statcode] = count
 
-        if pv_statcode:
-            provinces[pv_statcode] = provinces.get(pv_statcode, 0) + count
+        province_entry = rebuilt_provinces.setdefault(
+            pv_statcode,
+            {
+                "count": 0,
+                "municipalities": {},
+            },
+        )
+        province_entry["municipalities"][municipality_statcode] = count
+        province_entry["count"] += count
 
-    store["municipalities"] = municipalities
-    store["provinces"] = provinces
-    store["created_at"] = time.time()
+    for pv_statcode, province_entry in rebuilt_provinces.items():
+        affected_provinces[pv_statcode] = int(province_entry["count"])
 
+    if only_province:
+        dataset["provinces"][only_province] = normalize_province_summary_entry(
+            rebuilt_provinces.get(
+                only_province,
+                {
+                    "count": 0,
+                    "municipalities": {},
+                },
+            )
+        )
+    else:
+        dataset["provinces"] = {
+            pv_statcode: normalize_province_summary_entry(province_entry)
+            for pv_statcode, province_entry in rebuilt_provinces.items()
+        }
+
+    dataset["created_at"] = time.time()
+    dataset["source"] = "bag_pand_precomputed_summary"
+
+    store["datasets"][SUMMARY_DATASET_KEY] = dataset
     save_bag_pand_summary_store(store)
-    return store
+
+    return {
+        "store": store,
+        "dataset": dataset,
+        "affected_municipalities": affected_municipalities,
+        "affected_provinces": affected_provinces,
+    }
 
 
 async def ensure_bag_pand_summary_store() -> Dict[str, Any]:
-    data = load_bag_pand_summary_store()
-
-    if is_bag_pand_summary_store_fresh(data):
-        return data
-
-    try:
-        return await build_bag_pand_summary_store()
-    except Exception as e:
-        print(f"[summary-store] rebuild failed: {e}")
-
-        if data and data.get("municipalities"):
-            return data
-
-        raise
+    await load_admin_data()
+    store = load_bag_pand_summary_store()
+    return get_summary_dataset(store, SUMMARY_DATASET_KEY)
 
 
 app = FastAPI(title=APP_TITLE, version=APP_VERSION)
@@ -534,7 +713,9 @@ async def get_all_areas() -> Dict[str, Any]:
 
 
 
+
 @app.get("/api/bag/pand/summary")
+
 async def get_bag_pand_summary(
     level: str = Query(...),
     statcode: str = Query(...),
@@ -543,12 +724,12 @@ async def get_bag_pand_summary(
     statcode_norm = (statcode or "").strip().upper()
 
     if level_norm in {"municipality", "province"}:
-        store = await ensure_bag_pand_summary_store()
+        dataset = await ensure_bag_pand_summary_store()
 
         if level_norm == "municipality":
-            count = store.get("municipalities", {}).get(statcode_norm)
+            count = get_dataset_municipality_count(dataset, statcode_norm)
         else:
-            count = store.get("provinces", {}).get(statcode_norm)
+            count = get_dataset_province_count(dataset, statcode_norm)
 
         if count is None:
             raise HTTPException(
@@ -577,15 +758,16 @@ async def get_bag_pand_summary(
 async def rebuild_bag_pand_summary(
     province_statcode: Optional[str] = Query(default=None),
 ) -> Dict[str, Any]:
-    store = await build_bag_pand_summary_store(
+    result = await build_bag_pand_summary_store(
         province_statcode=province_statcode
     )
     return {
         "ok": True,
-        "created_at": store.get("created_at"),
-        "municipality_count": len(store.get("municipalities", {})),
-        "province_count": len(store.get("provinces", {})),
+        "created_at": result["dataset"].get("created_at"),
+        "municipality_count": len(result.get("affected_municipalities", {})),
+        "province_count": len(result.get("affected_provinces", {})),
     }
+
 
 @app.get("/api/bag/pand")
 async def get_bag_pand(
