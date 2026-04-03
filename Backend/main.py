@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import time
@@ -86,18 +87,43 @@ def normalize_province_summary_entry(value: Any) -> Dict[str, Any]:
     if isinstance(value, dict):
         count = int(value.get("count") or 0)
         municipalities_raw = value.get("municipalities", {}) or {}
+        status = str(value.get("status") or "complete").strip().lower() or "complete"
+        updated_at = value.get("updated_at")
+        completed_at = value.get("completed_at")
+        failed_municipalities_raw = value.get("failed_municipalities", []) or []
     else:
         count = int(value or 0)
         municipalities_raw = {}
+        status = "complete"
+        updated_at = None
+        completed_at = None
+        failed_municipalities_raw = []
 
     municipalities: Dict[str, int] = {}
     if isinstance(municipalities_raw, dict):
         for gm_statcode, municipality_count in municipalities_raw.items():
             municipalities[str(gm_statcode).strip().upper()] = int(municipality_count or 0)
 
+    failed_municipalities: List[Dict[str, Any]] = []
+    if isinstance(failed_municipalities_raw, list):
+        for item in failed_municipalities_raw:
+            if not isinstance(item, dict):
+                continue
+            failed_municipalities.append(
+                {
+                    "statcode": str(item.get("statcode", "")).strip().upper(),
+                    "name": str(item.get("name", "")).strip(),
+                    "error": str(item.get("error", "")).strip(),
+                }
+            )
+
     return {
         "count": count,
         "municipalities": municipalities,
+        "status": status,
+        "updated_at": updated_at,
+        "completed_at": completed_at,
+        "failed_municipalities": failed_municipalities,
     }
 
 
@@ -228,6 +254,60 @@ def get_dataset_municipality_count(
     return None
 
 
+def get_or_create_dataset_province_entry(
+    dataset: Dict[str, Any],
+    province_statcode: str,
+) -> Dict[str, Any]:
+    provinces = dataset.setdefault("provinces", {})
+    province_key = str(province_statcode or "").strip().upper()
+    province_entry = normalize_province_summary_entry(provinces.get(province_key, {}))
+    provinces[province_key] = province_entry
+    return province_entry
+
+
+def recompute_dataset_province_entry_count(province_entry: Dict[str, Any]) -> int:
+    municipality_counts = province_entry.get("municipalities", {}) or {}
+    province_entry["count"] = int(sum(int(v or 0) for v in municipality_counts.values()))
+    province_entry["updated_at"] = time.time()
+    return int(province_entry["count"])
+
+
+def summarize_failed_municipalities(
+    failed_items: List[Dict[str, Any]],
+    province_statcode: str,
+) -> List[Dict[str, Any]]:
+    province_key = str(province_statcode or "").strip().upper()
+    summarized: List[Dict[str, Any]] = []
+
+    for item in failed_items:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("province_statcode", "")).strip().upper() != province_key:
+            continue
+
+        summarized.append(
+            {
+                "statcode": str(item.get("statcode", "")).strip().upper(),
+                "name": str(item.get("name", "")).strip(),
+                "error": str(item.get("error", "")).strip(),
+            }
+        )
+
+    summarized.sort(key=lambda item: item.get("statcode", ""))
+    return summarized
+
+
+def save_bag_pand_summary_dataset_checkpoint(
+    store: Dict[str, Any],
+    dataset: Dict[str, Any],
+) -> Dict[str, Any]:
+    dataset["created_at"] = time.time()
+    dataset["source"] = "bag_pand_precomputed_summary"
+    store.setdefault("datasets", {})[SUMMARY_DATASET_KEY] = dataset
+    save_bag_pand_summary_store(store)
+    return dataset
+
+
 def load_bag_pand_summary_store() -> Dict[str, Any]:
     global _bag_pand_summary_store
 
@@ -272,7 +352,13 @@ def is_bag_pand_summary_store_fresh(data: Optional[Dict[str, Any]]) -> bool:
     return age < SUMMARY_MAX_AGE_SECONDS
 
 
-async def fetch_json(url: str, *, ttl_seconds: int = 3600) -> Any:
+async def fetch_json(
+    url: str,
+    *,
+    ttl_seconds: int = 3600,
+    request_retries: int = 3,
+    retry_delay_seconds: float = 1.5,
+) -> Any:
     cached = cache_get(url)
     if cached is not None:
         return cached
@@ -282,22 +368,37 @@ async def fetch_json(url: str, *, ttl_seconds: int = 3600) -> Any:
         "User-Agent": "geonovum-registry-dashboard/0.1.0",
     }
 
-    try:
-        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-            response = await client.get(url, headers=headers)
-    except httpx.RequestError as exc:
-        raise HTTPException(status_code=502, detail=f"Upstream request error: {exc!s}") from exc
+    last_error: Optional[HTTPException] = None
 
-    if response.status_code != 200:
-        snippet = response.text[:300].replace("\n", " ")
-        raise HTTPException(
-            status_code=502,
-            detail=f"Upstream error {response.status_code} for {url}. Body: {snippet}",
-        )
+    for attempt in range(1, max(1, request_retries) + 1):
+        try:
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                response = await client.get(url, headers=headers)
+        except httpx.RequestError as exc:
+            last_error = HTTPException(
+                status_code=502,
+                detail=f"Upstream request error: {exc!s}",
+            )
+        else:
+            if response.status_code == 200:
+                data = response.json()
+                cache_set(url, data, ttl_seconds)
+                return data
 
-    data = response.json()
-    cache_set(url, data, ttl_seconds)
-    return data
+            snippet = response.text[:300].replace("\n", " ")
+            last_error = HTTPException(
+                status_code=502,
+                detail=f"Upstream error {response.status_code} for {url}. Body: {snippet}",
+            )
+
+            if response.status_code < 500:
+                raise last_error
+
+        if attempt < max(1, request_retries):
+            await asyncio.sleep(retry_delay_seconds * attempt)
+
+    assert last_error is not None
+    raise last_error
 
 
 async def fetch_all_features(start_url: str, *, ttl_seconds: int = 3600) -> Dict[str, Any]:
@@ -537,6 +638,10 @@ async def count_bag_pand_for_area(level: str, statcode: str) -> int:
 
 async def build_bag_pand_summary_store(
     province_statcode: Optional[str] = None,
+    *,
+    resume: bool = True,
+    municipality_retry_attempts: int = 2,
+    retry_failed_municipalities: bool = True,
 ) -> Dict[str, Any]:
     data = await load_admin_data()
     store = load_bag_pand_summary_store()
@@ -545,64 +650,174 @@ async def build_bag_pand_summary_store(
     only_province = str(province_statcode or "").strip().upper()
     affected_municipalities: Dict[str, int] = {}
     affected_provinces: Dict[str, int] = {}
-    rebuilt_provinces: Dict[str, Dict[str, Any]] = {}
+    failed_municipalities_first_pass: List[Dict[str, Any]] = []
+    failed_municipalities_final: List[Dict[str, Any]] = []
+    skipped_municipalities: List[str] = []
+    touched_provinces: set[str] = set()
+    municipality_features: List[Dict[str, Any]] = []
+    municipality_total_by_province: Dict[str, int] = {}
 
     for feature in data["gemeenten"]["features"]:
         props = feature.get("properties", {}) or {}
         municipality_statcode = str(props.get("_statcode", "")).strip().upper()
+        pv_statcode = str(props.get("_pvstatcode", "")).strip().upper()
 
         if not municipality_statcode.startswith("GM"):
             continue
-
-        pv_statcode = str(props.get("_pvstatcode", "")).strip().upper()
         if only_province and pv_statcode != only_province:
             continue
         if not pv_statcode:
             continue
 
-        count = await count_bag_pand_for_area("municipality", municipality_statcode)
-        affected_municipalities[municipality_statcode] = count
+        municipality_features.append(feature)
+        municipality_total_by_province[pv_statcode] = municipality_total_by_province.get(pv_statcode, 0) + 1
 
-        province_entry = rebuilt_provinces.setdefault(
-            pv_statcode,
-            {
-                "count": 0,
-                "municipalities": {},
-            },
+    municipality_features.sort(
+        key=lambda feature: (
+            str(feature.get("properties", {}).get("_pvstatcode", "")).strip().upper(),
+            str(feature.get("properties", {}).get("_statnaam", "")).strip().lower(),
+            str(feature.get("properties", {}).get("_statcode", "")).strip().upper(),
         )
-        province_entry["municipalities"][municipality_statcode] = count
-        province_entry["count"] += count
+    )
 
-    for pv_statcode, province_entry in rebuilt_provinces.items():
+    async def try_count_municipality(municipality_statcode: str) -> int:
+        last_error: Optional[Exception] = None
+        for attempt in range(1, max(1, municipality_retry_attempts) + 1):
+            try:
+                print(
+                    f"[bag-pand-summary] municipality={municipality_statcode} attempt={attempt}/{max(1, municipality_retry_attempts)}"
+                )
+                return await count_bag_pand_for_area("municipality", municipality_statcode)
+            except Exception as exc:  # pragma: no cover - defensive logging path
+                last_error = exc
+                print(
+                    f"[bag-pand-summary] municipality={municipality_statcode} failed on attempt {attempt}/{max(1, municipality_retry_attempts)}: {exc}"
+                )
+                if attempt < max(1, municipality_retry_attempts):
+                    await asyncio.sleep(1.5 * attempt)
+
+        assert last_error is not None
+        raise last_error
+
+    async def process_municipality(feature: Dict[str, Any], *, second_pass: bool = False) -> bool:
+        props = feature.get("properties", {}) or {}
+        municipality_statcode = str(props.get("_statcode", "")).strip().upper()
+        municipality_name = str(props.get("_statnaam", municipality_statcode)).strip()
+        pv_statcode = str(props.get("_pvstatcode", "")).strip().upper()
+
+        if not municipality_statcode.startswith("GM") or not pv_statcode:
+            return False
+
+        province_entry = get_or_create_dataset_province_entry(dataset, pv_statcode)
+        touched_provinces.add(pv_statcode)
+
+        if resume and not second_pass and municipality_statcode in (province_entry.get("municipalities", {}) or {}):
+            skipped_municipalities.append(municipality_statcode)
+            print(
+                f"[bag-pand-summary] province={pv_statcode} municipality={municipality_statcode} name={municipality_name} skipped_existing=true"
+            )
+            return True
+
+        print(
+            f"[bag-pand-summary] province={pv_statcode} municipality={municipality_statcode} name={municipality_name} second_pass={str(second_pass).lower()} status=start"
+        )
+
+        try:
+            count = await try_count_municipality(municipality_statcode)
+        except Exception as exc:
+            failure = {
+                "province_statcode": pv_statcode,
+                "statcode": municipality_statcode,
+                "name": municipality_name,
+                "error": str(exc),
+            }
+            if second_pass:
+                failed_municipalities_final.append(failure)
+            else:
+                failed_municipalities_first_pass.append(failure)
+            print(
+                f"[bag-pand-summary] province={pv_statcode} municipality={municipality_statcode} name={municipality_name} second_pass={str(second_pass).lower()} status=failed"
+            )
+            return False
+
+        province_entry["municipalities"][municipality_statcode] = int(count)
+        province_entry["status"] = "partial"
+        province_entry["completed_at"] = None
+        province_entry["failed_municipalities"] = [
+            item
+            for item in (province_entry.get("failed_municipalities", []) or [])
+            if str(item.get("statcode", "")).strip().upper() != municipality_statcode
+        ]
+        recompute_dataset_province_entry_count(province_entry)
+        save_bag_pand_summary_dataset_checkpoint(store, dataset)
+
+        affected_municipalities[municipality_statcode] = int(count)
         affected_provinces[pv_statcode] = int(province_entry["count"])
 
-    if only_province:
-        dataset["provinces"][only_province] = normalize_province_summary_entry(
-            rebuilt_provinces.get(
-                only_province,
-                {
-                    "count": 0,
-                    "municipalities": {},
-                },
-            )
+        print(
+            f"[bag-pand-summary] province={pv_statcode} municipality={municipality_statcode} name={municipality_name} count={count} status=done"
         )
-    else:
-        dataset["provinces"] = {
-            pv_statcode: normalize_province_summary_entry(province_entry)
-            for pv_statcode, province_entry in rebuilt_provinces.items()
+        return True
+
+    for feature in municipality_features:
+        await process_municipality(feature, second_pass=False)
+
+    if retry_failed_municipalities and failed_municipalities_first_pass:
+        retry_features_by_statcode = {
+            str(feature.get("properties", {}).get("_statcode", "")).strip().upper(): feature
+            for feature in municipality_features
         }
+        to_retry = list(failed_municipalities_first_pass)
+        failed_municipalities_first_pass = []
 
-    dataset["created_at"] = time.time()
-    dataset["source"] = "bag_pand_precomputed_summary"
+        for failure in to_retry:
+            municipality_statcode = str(failure.get("statcode", "")).strip().upper()
+            feature = retry_features_by_statcode.get(municipality_statcode)
+            if feature is None:
+                failed_municipalities_final.append(failure)
+                continue
+            await process_municipality(feature, second_pass=True)
+    else:
+        failed_municipalities_final.extend(failed_municipalities_first_pass)
+        failed_municipalities_first_pass = []
 
-    store["datasets"][SUMMARY_DATASET_KEY] = dataset
-    save_bag_pand_summary_store(store)
+    finalized_provinces = [only_province] if only_province else sorted(touched_provinces)
+
+    for pv_statcode in finalized_provinces:
+        if not pv_statcode:
+            continue
+
+        province_entry = get_or_create_dataset_province_entry(dataset, pv_statcode)
+        recompute_dataset_province_entry_count(province_entry)
+
+        expected_municipality_count = municipality_total_by_province.get(pv_statcode, 0)
+        completed_municipality_count = len(province_entry.get("municipalities", {}) or {})
+        failed_for_province = summarize_failed_municipalities(
+            failed_municipalities_final,
+            pv_statcode,
+        )
+        province_entry["failed_municipalities"] = failed_for_province
+
+        if expected_municipality_count and completed_municipality_count >= expected_municipality_count and not failed_for_province:
+            province_entry["status"] = "complete"
+            province_entry["completed_at"] = time.time()
+        else:
+            province_entry["status"] = "partial"
+            province_entry["completed_at"] = None
+
+        province_entry["updated_at"] = time.time()
+        affected_provinces[pv_statcode] = int(province_entry["count"])
+
+    save_bag_pand_summary_dataset_checkpoint(store, dataset)
 
     return {
         "store": store,
         "dataset": dataset,
         "affected_municipalities": affected_municipalities,
         "affected_provinces": affected_provinces,
+        "failed_municipalities": failed_municipalities_final,
+        "skipped_municipalities": skipped_municipalities,
+        "status": "complete" if not failed_municipalities_final else "partial",
     }
 
 
@@ -757,15 +972,25 @@ async def get_bag_pand_summary(
 @app.post("/api/bag/pand/summary/rebuild")
 async def rebuild_bag_pand_summary(
     province_statcode: Optional[str] = Query(default=None),
+    resume: bool = Query(default=True),
+    municipality_retry_attempts: int = Query(default=2, ge=1, le=10),
+    retry_failed_municipalities: bool = Query(default=True),
 ) -> Dict[str, Any]:
     result = await build_bag_pand_summary_store(
-        province_statcode=province_statcode
+        province_statcode=province_statcode,
+        resume=resume,
+        municipality_retry_attempts=municipality_retry_attempts,
+        retry_failed_municipalities=retry_failed_municipalities,
     )
     return {
-        "ok": True,
+        "ok": result.get("status") == "complete",
+        "status": result.get("status"),
         "created_at": result["dataset"].get("created_at"),
         "municipality_count": len(result.get("affected_municipalities", {})),
         "province_count": len(result.get("affected_provinces", {})),
+        "failed_municipality_count": len(result.get("failed_municipalities", [])),
+        "failed_municipalities": result.get("failed_municipalities", []),
+        "skipped_municipality_count": len(result.get("skipped_municipalities", [])),
     }
 
 

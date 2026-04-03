@@ -2,7 +2,7 @@
   "version": 2,
   "datasets": {
     "bag_pand": {
-      "created_at": 1775205995.162156,
+      "created_at": 1775215467.6290543,
       "source": "bag_pand_precomputed_summary",
       "provinces": {
         "PV23": {
@@ -33,7 +33,11 @@
             "GM1773": 18206,
             "GM1774": 22979,
             "GM1896": 18034
-          }
+          },
+          "status": "complete",
+          "updated_at": null,
+          "completed_at": null,
+          "failed_municipalities": []
         },
         "PV26": {
           "count": 892718,
@@ -64,7 +68,11 @@
             "GM1581": 49329,
             "GM1904": 45087,
             "GM1961": 54967
-          }
+          },
+          "status": "complete",
+          "updated_at": null,
+          "completed_at": null,
+          "failed_municipalities": []
         },
         "PV24": {
           "count": 300971,
@@ -75,7 +83,11 @@
             "GM0184": 14275,
             "GM0303": 33964,
             "GM0995": 59787
-          }
+          },
+          "status": "complete",
+          "updated_at": null,
+          "completed_at": null,
+          "failed_municipalities": []
         },
         "PV29": {
           "count": 407998,
@@ -93,7 +105,11 @@
             "GM1676": 46889,
             "GM1695": 16638,
             "GM1714": 44660
-          }
+          },
+          "status": "complete",
+          "updated_at": null,
+          "completed_at": null,
+          "failed_municipalities": []
         },
         "PV21": {
           "count": 598947,
@@ -116,7 +132,11 @@
             "GM1940": 46335,
             "GM1949": 46327,
             "GM1970": 45859
-          }
+          },
+          "status": "complete",
+          "updated_at": null,
+          "completed_at": null,
+          "failed_municipalities": []
         },
         "PV22": {
           "count": 467826,
@@ -133,7 +153,11 @@
             "GM1701": 29132,
             "GM1730": 34440,
             "GM1731": 39788
-          }
+          },
+          "status": "complete",
+          "updated_at": null,
+          "completed_at": null,
+          "failed_municipalities": []
         },
         "PV20": {
           "count": 502579,
@@ -148,7 +172,71 @@
             "GM1966": 51862,
             "GM1969": 59042,
             "GM1979": 54399
-          }
+          },
+          "status": "complete",
+          "updated_at": null,
+          "completed_at": null,
+          "failed_municipalities": []
+        },
+        "PV25": {
+          "count": 1760096,
+          "municipalities": {
+            "GM0197": 22502,
+            "GM0200": 131208,
+            "GM0202": 98628,
+            "GM0203": 58327,
+            "GM1945": 34898,
+            "GM1859": 47980,
+            "GM0209": 20366,
+            "GM1876": 41514,
+            "GM0213": 24918,
+            "GM0214": 24396,
+            "GM0216": 21480,
+            "GM0221": 9250,
+            "GM0222": 49272,
+            "GM0225": 14344,
+            "GM0226": 20149,
+            "GM0228": 99715,
+            "GM0230": 22426,
+            "GM0232": 32794,
+            "GM0233": 34765,
+            "GM0243": 34772,
+            "GM0244": 11132,
+            "GM0246": 19882,
+            "GM0252": 14978,
+            "GM1705": 32391,
+            "GM0262": 41175,
+            "GM0263": 22456,
+            "GM1955": 28512,
+            "GM1740": 23945,
+            "GM0267": 37853,
+            "GM0268": 110288,
+            "GM0302": 30195,
+            "GM0269": 25114,
+            "GM1586": 25492,
+            "GM1509": 32881,
+            "GM1734": 40027,
+            "GM0273": 30282,
+            "GM0274": 24084,
+            "GM0275": 37508,
+            "GM0277": 1341,
+            "GM0279": 8586,
+            "GM0281": 29100,
+            "GM0285": 29760,
+            "GM0289": 21412,
+            "GM1960": 44856,
+            "GM0668": 22349,
+            "GM0293": 12508,
+            "GM0296": 33008,
+            "GM0294": 25632,
+            "GM0297": 23931,
+            "GM0299": 39102,
+            "GM0301": 36612
+          },
+          "status": "complete",
+          "updated_at": 1775215467.6290543,
+          "completed_at": 1775215467.6290543,
+          "failed_municipalities": []
         }
       }
     }
