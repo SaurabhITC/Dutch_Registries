@@ -172,44 +172,12 @@
               </div>
             </div>
 
-            <div class="bagGroup" id="bgtAccordion" style="margin-top:10px;">
-              <button type="button" class="bagAccordionSummary" id="bgtAccordionToggle" aria-label="BGT objecten tonen of verbergen" aria-expanded="false" aria-controls="bgtAccordionPanel">
-                <span class="bagAccordionTitle" id="bgtAccordionTitle">BGT</span>
-                <span class="bagChevron" aria-hidden="true">
-                  <svg viewBox="0 0 16 16"><path d="M6 3.5 10.5 8 6 12.5"/></svg>
-                </span>
-              </button>
-              <div class="bagAccordionPanel" id="bgtAccordionPanel">
-                <div class="bagObjectList">
-                  <div class="bagObjectItem">
-                    <div class="bagObjectName" id="bgtNameWegdeel">Wegdeel</div>
-                    <label class="toggle" title="Inschakelen"><input type="checkbox" id="toggleBgtWegdeel" aria-label="BGT wegdeel inschakelen"></label>
-                  </div>
-
-                  <div class="bagObjectItem">
-                    <div class="bagObjectName" id="bgtNameWaterdeel">Waterdeel</div>
-                    <label class="toggle" title="Inschakelen"><input type="checkbox" id="toggleBgtWaterdeel" aria-label="BGT waterdeel inschakelen"></label>
-                  </div>
-
-                  <div class="bagObjectItem">
-                    <div class="bagObjectName" id="bgtNameBegroeid">Begroeid terreindeel</div>
-                    <label class="toggle" title="Inschakelen"><input type="checkbox" id="toggleBgtBegroeid" aria-label="BGT begroeid terreindeel inschakelen"></label>
-                  </div>
-
-                  <div class="bagObjectItem">
-                    <div class="bagObjectName" id="bgtNameOnbegroeid">Onbegroeid terreindeel</div>
-                    <label class="toggle" title="Inschakelen"><input type="checkbox" id="toggleBgtOnbegroeid" aria-label="BGT onbegroeid terreindeel inschakelen"></label>
-                  </div>
-
-                  <div class="bagObjectItem">
-                    <div class="bagObjectName" id="bgtNameSpoor">Spoor</div>
-                    <label class="toggle" title="Inschakelen"><input type="checkbox" id="toggleBgtSpoor" aria-label="BGT spoor inschakelen"></label>
-                  </div>
-                </div>
-                <div class="hint" id="bgtHint" style="padding:0 12px 12px;">
-                  BGT wordt als featurelaag geladen. Op provincie- en gemeentelijk niveau wordt alleen een samenvatting getoond; op wijk- en buurtniveau ook de kaartlaag.
-                </div>
+            <div class="registryItem" style="margin-top:10px;">
+              <div class="registryLeft">
+                <div class="registryName">BGT</div>
+                <div class="registryDesc">Topografie / fysieke objecten (vergrendeld)</div>
               </div>
+              <label class="toggle" title="Vergrendeld"><input type="checkbox" disabled aria-label="BGT niet beschikbaar"></label>
             </div>
 
             <div class="registryItem" style="margin-top:10px;">
@@ -232,7 +200,7 @@
             <span id="bagSummaryTitle">Gegevenssamenvatting</span>
             <span class="badge" id="bagSummaryBadge">gegevens</span>
           </div>
-          <div class="hint" id="bagSummaryBody">Kies een gebied en schakel BAG of BGT in.</div>
+          <div class="hint" id="bagSummaryBody">Kies een gebied en schakel BAG in.</div>
         </div>
 
         <div class="legend">
@@ -248,7 +216,6 @@
           <div class="legendSection" id="legendDataSection" style="display:none;">
             <div class="legendSectionTitle" id="legendDataGroup">Gegevenslagen</div>
             <div class="legendRow" id="legendBagRow" style="display:none;"><span class="swatchPolygon"></span><span id="legendBag">BAG objecten</span></div>
-            <div class="legendRow" id="legendBgtRow" style="display:none;"><span class="swatchPolygon" style="border-color:#475569;background:rgba(148,163,184,0.32);"></span><span id="legendBgt">BGT objecten</span></div>
           </div>
         </div>
       </section>
