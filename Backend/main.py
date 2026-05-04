@@ -24,22 +24,53 @@ PROVINCIE_URL = (
     f"?f=json&limit=1000&jaarcode={YEARCODE}"
 )
 GEMEENTE_URL = (
-    f"{CBS_BASE}/collections/gemeente_gegeneraliseerd/items"
+    f"{CBS_BASE}/collections/gemeente_niet_gegeneraliseerd/items"
     f"?f=json&limit=1000&jaarcode={YEARCODE}"
 )
 WIJK_URL = (
-    f"{CBS_BASE}/collections/wijk_gegeneraliseerd/items"
+    f"{CBS_BASE}/collections/wijk_niet_gegeneraliseerd/items"
     f"?f=json&limit=1000&jaarcode={YEARCODE}"
 )
 BUURT_URL = (
-    f"{CBS_BASE}/collections/buurt_gegeneraliseerd/items"
+    f"{CBS_BASE}/collections/buurt_niet_gegeneraliseerd/items"
     f"?f=json&limit=1000&jaarcode={YEARCODE}"
 )
 BAG_PAND_URL = f"{BAG_BASE}/collections/pand/items?f=json&limit=1000"
+BAG_COLLECTION_URLS = {
+    "pand": BAG_PAND_URL,
+    "verblijfsobject": f"{BAG_BASE}/collections/verblijfsobject/items?f=json&limit=1000",
+    "adres": f"{BAG_BASE}/collections/adres/items?f=json&limit=1000",
+    "woonplaats": f"{BAG_BASE}/collections/woonplaats/items?f=json&limit=1000",
+    "standplaats": f"{BAG_BASE}/collections/standplaats/items?f=json&limit=1000",
+    "ligplaats": f"{BAG_BASE}/collections/ligplaats/items?f=json&limit=1000",
+}
 
-SUMMARY_FILE = Path(__file__).resolve().parent / "bag_pand_summary_store.json"
 SUMMARY_MAX_AGE_SECONDS = 24 * 60 * 60
 SUMMARY_DATASET_KEY = "bag_pand"
+
+ADMIN_CACHE_VERSION = 1
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+RUNTIME_DATA_DIR = PROJECT_ROOT / "Geonovum_Runtime_Data"
+
+ADMIN_CACHE_DIR = RUNTIME_DATA_DIR / "admin_data"
+ADMIN_PROVINCES_FILE = ADMIN_CACHE_DIR / "provinces.json"
+ADMIN_MUNICIPALITIES_FILE = ADMIN_CACHE_DIR / "municipalities.json"
+ADMIN_MUNICIPALITY_PROVINCE_MAP_FILE = ADMIN_CACHE_DIR / "municipality_to_province.json"
+ADMIN_WIJKEN_DIR = ADMIN_CACHE_DIR / "wijken"
+ADMIN_BUURTEN_DIR = ADMIN_CACHE_DIR / "buurten"
+
+BAG_DATA_DIR = RUNTIME_DATA_DIR / "bag_data"
+SUMMARY_FILE = BAG_DATA_DIR / "bag_pand_summary_store.json"
+
+for p in [
+    RUNTIME_DATA_DIR,
+    ADMIN_CACHE_DIR,
+    ADMIN_WIJKEN_DIR,
+    ADMIN_BUURTEN_DIR,
+    BAG_DATA_DIR,
+]:
+    p.mkdir(parents=True, exist_ok=True)
 
 CacheValue = Tuple[float, Any]
 _cache: Dict[str, CacheValue] = {}
@@ -69,9 +100,26 @@ def get_cached_admin_data() -> Optional[Dict[str, Any]]:
 
 
 def cached_municipality_to_province_map() -> Dict[str, str]:
-    admin_data = get_cached_admin_data() or {}
     mapping: Dict[str, str] = {}
 
+    file_mapping = load_municipality_to_province_map_file()
+    if file_mapping:
+        return file_mapping
+
+    municipality_cache = cache_get("admin_municipalities_v1")
+    if isinstance(municipality_cache, dict):
+        for feature in municipality_cache.get("features", []) or []:
+            props = feature.get("properties", {}) or {}
+            gm_statcode = str(props.get("_statcode", "")).strip().upper()
+            pv_statcode = str(props.get("_pvstatcode", "")).strip().upper()
+
+            if gm_statcode.startswith("GM") and pv_statcode.startswith("PV"):
+                mapping[gm_statcode] = pv_statcode
+
+    if mapping:
+        return mapping
+
+    admin_data = get_cached_admin_data() or {}
     for feature in admin_data.get("gemeenten", {}).get("features", []) or []:
         props = feature.get("properties", {}) or {}
         gm_statcode = str(props.get("_statcode", "")).strip().upper()
@@ -352,6 +400,115 @@ def is_bag_pand_summary_store_fresh(data: Optional[Dict[str, Any]]) -> bool:
     return age < SUMMARY_MAX_AGE_SECONDS
 
 
+def empty_feature_collection() -> Dict[str, Any]:
+    return {"type": "FeatureCollection", "features": []}
+
+
+def wrap_admin_cache_payload(
+    fc: Dict[str, Any],
+    *,
+    level: str,
+    parent_gmcode: Optional[str] = None,
+    parent_statcode: Optional[str] = None,
+) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {
+        "cache_version": ADMIN_CACHE_VERSION,
+        "level": level,
+        "yearcode": YEARCODE,
+        "source": "cbs_gebiedsindelingen",
+        "saved_at": time.time(),
+        "type": "FeatureCollection",
+        "features": list(fc.get("features", []) or []),
+    }
+
+    if parent_gmcode:
+        payload["parent_gmcode"] = str(parent_gmcode).strip()
+    if parent_statcode:
+        payload["parent_statcode"] = str(parent_statcode).strip().upper()
+
+    return payload
+
+
+def normalize_admin_cache_payload(
+    data: Any,
+    *,
+    expected_level: str,
+    expected_parent_gmcode: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    if not isinstance(data, dict):
+        return None
+
+    if int(data.get("cache_version") or 0) != ADMIN_CACHE_VERSION:
+        return None
+
+    if str(data.get("level") or "").strip().lower() != expected_level:
+        return None
+
+    if int(data.get("yearcode") or 0) != YEARCODE:
+        return None
+
+    if expected_parent_gmcode is not None:
+        stored_parent = str(data.get("parent_gmcode") or "").strip()
+        if stored_parent != str(expected_parent_gmcode).strip():
+            return None
+
+    features = data.get("features", []) or []
+    if not isinstance(features, list):
+        return None
+
+    return {"type": "FeatureCollection", "features": features}
+
+
+def load_admin_cache_file(
+    path: Path,
+    *,
+    expected_level: str,
+    expected_parent_gmcode: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    if not path.exists():
+        return None
+
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception as e:
+        print(f"[admin-cache] failed to read {path}: {e}")
+        return None
+
+    fc = normalize_admin_cache_payload(
+        data,
+        expected_level=expected_level,
+        expected_parent_gmcode=expected_parent_gmcode,
+    )
+    if fc is None:
+        return None
+
+    return fc
+
+
+def save_admin_cache_file(
+    path: Path,
+    fc: Dict[str, Any],
+    *,
+    level: str,
+    parent_gmcode: Optional[str] = None,
+    parent_statcode: Optional[str] = None,
+) -> Dict[str, Any]:
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    payload = wrap_admin_cache_payload(
+        fc,
+        level=level,
+        parent_gmcode=parent_gmcode,
+        parent_statcode=parent_statcode,
+    )
+
+    with path.open("w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+
+    return fc
+
+
 async def fetch_json(
     url: str,
     *,
@@ -503,14 +660,76 @@ def preprocess_features(fc: Dict[str, Any], kind: str) -> Dict[str, Any]:
     return out
 
 
-def find_province_statcode_for_municipality(
+def load_municipality_to_province_map_file() -> Dict[str, str]:
+    if not ADMIN_MUNICIPALITY_PROVINCE_MAP_FILE.exists():
+        return {}
+
+    try:
+        with ADMIN_MUNICIPALITY_PROVINCE_MAP_FILE.open("r", encoding="utf-8") as f:
+            raw = json.load(f)
+    except Exception as e:
+        print(f"[admin-cache] failed to read municipality_to_province map: {e}")
+        return {}
+
+    if not isinstance(raw, dict):
+        return {}
+
+    mapping: Dict[str, str] = {}
+    for gm_statcode, pv_statcode in raw.items():
+        gm = str(gm_statcode).strip().upper()
+        pv = str(pv_statcode).strip().upper()
+        if gm.startswith("GM") and pv.startswith("PV"):
+            mapping[gm] = pv
+
+    return mapping
+
+
+def save_municipality_to_province_map_file(mapping: Dict[str, str]) -> Dict[str, str]:
+    ADMIN_MUNICIPALITY_PROVINCE_MAP_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+    cleaned: Dict[str, str] = {}
+    for gm_statcode, pv_statcode in mapping.items():
+        gm = str(gm_statcode).strip().upper()
+        pv = str(pv_statcode).strip().upper()
+        if gm.startswith("GM") and pv.startswith("PV"):
+            cleaned[gm] = pv
+
+    with ADMIN_MUNICIPALITY_PROVINCE_MAP_FILE.open("w", encoding="utf-8") as f:
+        json.dump(dict(sorted(cleaned.items())), f, ensure_ascii=False, indent=2)
+
+    return cleaned
+
+
+def find_best_province_statcode_for_municipality(
     municipality_feature: Dict[str, Any],
     province_features: List[Dict[str, Any]],
 ) -> str:
     try:
         municipality_geom = shape(municipality_feature["geometry"])
-        probe = municipality_geom.representative_point()
+    except Exception:
+        return ""
 
+    best_pv = ""
+    best_overlap_area = 0.0
+
+    for province_feature in province_features:
+        try:
+            province_geom = shape(province_feature["geometry"])
+            overlap_area = municipality_geom.intersection(province_geom).area
+        except Exception:
+            continue
+
+        if overlap_area > best_overlap_area:
+            best_overlap_area = overlap_area
+            best_pv = str(
+                province_feature.get("properties", {}).get("_statcode", "")
+            ).strip().upper()
+
+    if best_pv:
+        return best_pv
+
+    try:
+        probe = municipality_geom.representative_point()
         for province_feature in province_features:
             province_geom = shape(province_feature["geometry"])
             if province_geom.contains(probe) or province_geom.intersects(probe):
@@ -523,47 +742,284 @@ def find_province_statcode_for_municipality(
     return ""
 
 
-async def load_admin_data() -> Dict[str, Any]:
-    cache_key = "admin_data_v3"
+async def load_municipality_to_province_map() -> Dict[str, str]:
+    cache_key = "municipality_to_province_map_v1"
     cached = cache_get(cache_key)
-    if cached is not None:
+    if isinstance(cached, dict) and cached:
         return cached
 
-    provincie_raw = await fetch_all_features(PROVINCIE_URL, ttl_seconds=24 * 3600)
+    disk_cached = load_municipality_to_province_map_file()
+    if disk_cached:
+        cache_set(cache_key, disk_cached, 24 * 3600)
+        return disk_cached
+
+    provincies = await load_provinces()
     gemeente_raw = await fetch_all_features(GEMEENTE_URL, ttl_seconds=24 * 3600)
-    wijk_raw = await fetch_all_features(WIJK_URL, ttl_seconds=24 * 3600)
-    buurt_raw = await fetch_all_features(BUURT_URL, ttl_seconds=24 * 3600)
-
-    provincies = preprocess_features(provincie_raw, "provincie")
     gemeenten = preprocess_features(gemeente_raw, "gemeente")
-    wijken = preprocess_features(wijk_raw, "wijk")
-    buurten = preprocess_features(buurt_raw, "buurt")
 
-    gm_to_province: Dict[str, str] = {}
+    mapping: Dict[str, str] = {}
 
-    for feature in gemeenten["features"]:
-        props = feature["properties"]
-        statcode = props["_statcode"]
-        if not statcode.startswith("GM"):
+    for feature in gemeenten.get("features", []) or []:
+        props = feature.get("properties", {}) or {}
+        gm_statcode = str(props.get("_statcode", "")).strip().upper()
+        if not gm_statcode.startswith("GM"):
             continue
 
-        matched_pv = find_province_statcode_for_municipality(
+        pv_statcode = find_best_province_statcode_for_municipality(
             feature,
             provincies["features"],
         )
+        if pv_statcode.startswith("PV"):
+            mapping[gm_statcode] = pv_statcode
 
-        props["_pvstatcode"] = matched_pv
-        gm_to_province[statcode] = matched_pv
+    mapping = save_municipality_to_province_map_file(mapping)
+    cache_set(cache_key, mapping, 24 * 3600)
+    return mapping
+
+
+def municipality_to_province_map_from_features(
+    gemeenten: Dict[str, Any],
+) -> Dict[str, str]:
+    mapping: Dict[str, str] = {}
+    for feature in gemeenten.get("features", []) or []:
+        props = feature.get("properties", {}) or {}
+        gm_statcode = str(props.get("_statcode", "")).strip().upper()
+        pv_statcode = str(props.get("_pvstatcode", "")).strip().upper()
+
+        if gm_statcode.startswith("GM") and pv_statcode.startswith("PV"):
+            mapping[gm_statcode] = pv_statcode
+
+    return mapping
+
+
+async def load_provinces() -> Dict[str, Any]:
+    cache_key = "admin_provinces_v1"
+    cached = cache_get(cache_key)
+    if isinstance(cached, dict):
+        return cached
+
+    disk_cached = load_admin_cache_file(
+        ADMIN_PROVINCES_FILE,
+        expected_level="province",
+    )
+    if isinstance(disk_cached, dict):
+        cache_set(cache_key, disk_cached, 24 * 3600)
+        return disk_cached
+
+    provincie_raw = await fetch_all_features(PROVINCIE_URL, ttl_seconds=24 * 3600)
+    provincies = preprocess_features(provincie_raw, "provincie")
+
+    save_admin_cache_file(
+        ADMIN_PROVINCES_FILE,
+        provincies,
+        level="province",
+    )
+    cache_set(cache_key, provincies, 24 * 3600)
+    return provincies
+
+
+async def load_municipalities() -> Dict[str, Any]:
+    cache_key = "admin_municipalities_v1"
+    cached = cache_get(cache_key)
+    if isinstance(cached, dict):
+        return cached
+
+    disk_cached = load_admin_cache_file(
+        ADMIN_MUNICIPALITIES_FILE,
+        expected_level="municipality",
+    )
+    if isinstance(disk_cached, dict):
+        cache_set(cache_key, disk_cached, 24 * 3600)
+        return disk_cached
+
+    gm_to_pv = await load_municipality_to_province_map()
+
+    gemeente_raw = await fetch_all_features(GEMEENTE_URL, ttl_seconds=24 * 3600)
+    gemeenten = preprocess_features(gemeente_raw, "gemeente")
+
+    for feature in gemeenten["features"]:
+        props = feature.get("properties", {}) or {}
+        gm_statcode = str(props.get("_statcode", "")).strip().upper()
+
+        if not gm_statcode.startswith("GM"):
+            continue
+
+        props["_pvstatcode"] = gm_to_pv.get(gm_statcode, "")
+
+    save_admin_cache_file(
+        ADMIN_MUNICIPALITIES_FILE,
+        gemeenten,
+        level="municipality",
+    )
+    cache_set(cache_key, gemeenten, 24 * 3600)
+    return gemeenten
+
+
+def gm_statcode_from_gmcode(value: Any) -> str:
+    gmcode = normalize_gmcode(value)
+    return f"GM{gmcode}" if gmcode else ""
+
+
+async def load_wijken_for_municipality(municipality_gmcode: str) -> Dict[str, Any]:
+    gmcode = normalize_gmcode(municipality_gmcode)
+    if not gmcode:
+        return empty_feature_collection()
+
+    cache_key = f"admin_wijken_by_gm_v1::{gmcode}"
+    cached = cache_get(cache_key)
+    if isinstance(cached, dict):
+        return cached
+
+    disk_path = ADMIN_WIJKEN_DIR / f"{gmcode}.json"
+    disk_cached = load_admin_cache_file(
+        disk_path,
+        expected_level="wijk",
+        expected_parent_gmcode=gmcode,
+    )
+    if isinstance(disk_cached, dict):
+        cache_set(cache_key, disk_cached, 24 * 3600)
+        return disk_cached
+
+    municipality_statcode = gm_statcode_from_gmcode(gmcode)
+    municipality_feature = await get_area_feature("municipality", municipality_statcode)
+    municipality_props = municipality_feature.get("properties", {}) or {}
+    municipality_bbox = bbox_from_feature(municipality_feature)
+
+    wijk_raw = await fetch_all_features(
+        f"{WIJK_URL}&bbox={municipality_bbox}",
+        ttl_seconds=24 * 3600,
+    )
+    wijken = preprocess_features(wijk_raw, "wijk")
+
+    filtered_features: List[Dict[str, Any]] = []
+    province_statcode = str(municipality_props.get("_pvstatcode", "")).strip().upper()
+
+    for feature in wijken.get("features", []) or []:
+        props = feature.get("properties", {}) or {}
+        if str(props.get("_gmcode", "")).strip() != gmcode:
+            continue
+        props["_pvstatcode"] = province_statcode
+        filtered_features.append(feature)
+
+    result = {"type": "FeatureCollection", "features": filtered_features}
+
+    save_admin_cache_file(
+        disk_path,
+        result,
+        level="wijk",
+        parent_gmcode=gmcode,
+        parent_statcode=municipality_statcode,
+    )
+    cache_set(cache_key, result, 24 * 3600)
+    return result
+
+
+async def load_buurten_for_municipality(municipality_gmcode: str) -> Dict[str, Any]:
+    gmcode = normalize_gmcode(municipality_gmcode)
+    if not gmcode:
+        return empty_feature_collection()
+
+    cache_key = f"admin_buurten_by_gm_v1::{gmcode}"
+    cached = cache_get(cache_key)
+    if isinstance(cached, dict):
+        return cached
+
+    disk_path = ADMIN_BUURTEN_DIR / f"{gmcode}.json"
+    disk_cached = load_admin_cache_file(
+        disk_path,
+        expected_level="buurt",
+        expected_parent_gmcode=gmcode,
+    )
+    if isinstance(disk_cached, dict):
+        cache_set(cache_key, disk_cached, 24 * 3600)
+        return disk_cached
+
+    municipality_statcode = gm_statcode_from_gmcode(gmcode)
+    municipality_feature = await get_area_feature("municipality", municipality_statcode)
+    municipality_props = municipality_feature.get("properties", {}) or {}
+    municipality_bbox = bbox_from_feature(municipality_feature)
+
+    buurt_raw = await fetch_all_features(
+        f"{BUURT_URL}&bbox={municipality_bbox}",
+        ttl_seconds=24 * 3600,
+    )
+    buurten = preprocess_features(buurt_raw, "buurt")
+
+    filtered_features: List[Dict[str, Any]] = []
+    province_statcode = str(municipality_props.get("_pvstatcode", "")).strip().upper()
+
+    for feature in buurten.get("features", []) or []:
+        props = feature.get("properties", {}) or {}
+        if str(props.get("_gmcode", "")).strip() != gmcode:
+            continue
+        props["_pvstatcode"] = province_statcode
+        filtered_features.append(feature)
+
+    result = {"type": "FeatureCollection", "features": filtered_features}
+
+    save_admin_cache_file(
+        disk_path,
+        result,
+        level="buurt",
+        parent_gmcode=gmcode,
+        parent_statcode=municipality_statcode,
+    )
+    cache_set(cache_key, result, 24 * 3600)
+    return result
+
+
+async def load_wijken() -> Dict[str, Any]:
+    cache_key = "admin_wijken_v1"
+    cached = cache_get(cache_key)
+    if isinstance(cached, dict):
+        return cached
+
+    gemeenten = await load_municipalities()
+    gm_to_province = municipality_to_province_map_from_features(gemeenten)
+
+    wijk_raw = await fetch_all_features(WIJK_URL, ttl_seconds=24 * 3600)
+    wijken = preprocess_features(wijk_raw, "wijk")
 
     for feature in wijken["features"]:
-        gmcode = str(feature["properties"].get("_gmcode", "")).strip()
+        gmcode = str(feature.get("properties", {}).get("_gmcode", "")).strip()
         gm_statcode = f"GM{gmcode}" if gmcode else ""
         feature["properties"]["_pvstatcode"] = gm_to_province.get(gm_statcode, "")
 
+    cache_set(cache_key, wijken, 24 * 3600)
+    return wijken
+
+
+async def load_buurten() -> Dict[str, Any]:
+    cache_key = "admin_buurten_v1"
+    cached = cache_get(cache_key)
+    if isinstance(cached, dict):
+        return cached
+
+    gemeenten = await load_municipalities()
+    gm_to_province = municipality_to_province_map_from_features(gemeenten)
+
+    buurt_raw = await fetch_all_features(BUURT_URL, ttl_seconds=24 * 3600)
+    buurten = preprocess_features(buurt_raw, "buurt")
+
     for feature in buurten["features"]:
-        gmcode = str(feature["properties"].get("_gmcode", "")).strip()
+        gmcode = str(feature.get("properties", {}).get("_gmcode", "")).strip()
         gm_statcode = f"GM{gmcode}" if gmcode else ""
         feature["properties"]["_pvstatcode"] = gm_to_province.get(gm_statcode, "")
+
+    cache_set(cache_key, buurten, 24 * 3600)
+    return buurten
+
+
+async def load_admin_data() -> Dict[str, Any]:
+    cache_key = "admin_data_v3"
+    cached = cache_get(cache_key)
+    if isinstance(cached, dict):
+        return cached
+
+    provincies = await load_provinces()
+    gemeenten = await load_municipalities()
+    wijken = await load_wijken()
+    buurten = await load_buurten()
 
     result = {
         "provincies": provincies,
@@ -576,18 +1032,33 @@ async def load_admin_data() -> Dict[str, Any]:
 
 
 async def get_area_feature(level: str, statcode: str) -> Dict[str, Any]:
-    data = await load_admin_data()
     level = (level or "").strip().lower()
     statcode = (statcode or "").strip().upper()
 
     if level == "province":
-        features = data["provincies"]["features"]
+        features = (await load_provinces())["features"]
+
     elif level == "municipality":
-        features = data["gemeenten"]["features"]
+        features = (await load_municipalities())["features"]
+
     elif level == "wijk":
-        features = data["wijken"]["features"]
+        gmcode = municipality_code_from_statcode(statcode)
+        if not gmcode:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Could not extract municipality code from wijk statcode={statcode}",
+            )
+        features = (await load_wijken_for_municipality(gmcode))["features"]
+
     elif level == "buurt":
-        features = data["buurten"]["features"]
+        gmcode = municipality_code_from_statcode(statcode)
+        if not gmcode:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Could not extract municipality code from buurt statcode={statcode}",
+            )
+        features = (await load_buurten_for_municipality(gmcode))["features"]
+
     else:
         raise HTTPException(status_code=400, detail="Invalid level")
 
@@ -595,7 +1066,10 @@ async def get_area_feature(level: str, statcode: str) -> Dict[str, Any]:
         if str(feature.get("properties", {}).get("_statcode", "")).upper() == statcode:
             return feature
 
-    raise HTTPException(status_code=404, detail=f"Area not found for level={level}, statcode={statcode}")
+    raise HTTPException(
+        status_code=404,
+        detail=f"Area not found for level={level}, statcode={statcode}",
+    )
 
 
 def feature_intersects_area(feature: Dict[str, Any], area_feature: Dict[str, Any]) -> bool:
@@ -611,6 +1085,14 @@ def bbox_from_feature(feature: Dict[str, Any]) -> str:
     geom = shape(feature["geometry"])
     minx, miny, maxx, maxy = geom.bounds
     return f"{minx},{miny},{maxx},{maxy}"
+
+
+def feature_matches_area_for_bag_object(
+    feature: Dict[str, Any],
+    area_feature: Dict[str, Any],
+    object_type: str,
+) -> bool:
+    return feature_intersects_area(feature, area_feature)
 
 
 async def count_bag_pand_for_area(level: str, statcode: str) -> int:
@@ -643,7 +1125,7 @@ async def build_bag_pand_summary_store(
     municipality_retry_attempts: int = 2,
     retry_failed_municipalities: bool = True,
 ) -> Dict[str, Any]:
-    data = await load_admin_data()
+    gemeenten = await load_municipalities()
     store = load_bag_pand_summary_store()
     dataset = get_summary_dataset(store, SUMMARY_DATASET_KEY)
 
@@ -657,7 +1139,7 @@ async def build_bag_pand_summary_store(
     municipality_features: List[Dict[str, Any]] = []
     municipality_total_by_province: Dict[str, int] = {}
 
-    for feature in data["gemeenten"]["features"]:
+    for feature in gemeenten["features"]:
         props = feature.get("properties", {}) or {}
         municipality_statcode = str(props.get("_statcode", "")).strip().upper()
         pv_statcode = str(props.get("_pvstatcode", "")).strip().upper()
@@ -822,7 +1304,6 @@ async def build_bag_pand_summary_store(
 
 
 async def ensure_bag_pand_summary_store() -> Dict[str, Any]:
-    await load_admin_data()
     store = load_bag_pand_summary_store()
     return get_summary_dataset(store, SUMMARY_DATASET_KEY)
 
@@ -839,7 +1320,6 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_load_bag_pand_summary_store() -> None:
-    await load_admin_data()
     load_bag_pand_summary_store()
 
 
@@ -850,16 +1330,15 @@ def health() -> Dict[str, Any]:
 
 @app.get("/api/areas/provinces")
 async def get_provinces() -> Dict[str, Any]:
-    data = await load_admin_data()
-    return data["provincies"]
+    return await load_provinces()
 
 
 @app.get("/api/areas/municipalities")
 async def get_municipalities(
     province_statcode: Optional[str] = Query(default=None)
 ) -> Dict[str, Any]:
-    data = await load_admin_data()
-    features = data["gemeenten"]["features"]
+    data = await load_municipalities()
+    features = data["features"]
 
     if province_statcode:
         features = [
@@ -874,20 +1353,13 @@ async def get_municipalities(
 async def get_wijken(
     municipality_gmcode: Optional[str] = Query(default=None)
 ) -> Dict[str, Any]:
-    data = await load_admin_data()
-    features = data["wijken"]["features"]
+    if not municipality_gmcode:
+        raise HTTPException(
+            status_code=400,
+            detail="municipality_gmcode is required for wijk requests",
+        )
 
-    if municipality_gmcode:
-        gmcode = normalize_gmcode(municipality_gmcode)
-        if not gmcode:
-            return {"type": "FeatureCollection", "features": []}
-
-        features = [
-            f for f in features
-            if str(f.get("properties", {}).get("_gmcode", "")).strip() == gmcode
-        ]
-
-    return {"type": "FeatureCollection", "features": features}
+    return await load_wijken_for_municipality(municipality_gmcode)
 
 
 @app.get("/api/areas/buurten")
@@ -895,18 +1367,14 @@ async def get_buurten(
     municipality_gmcode: Optional[str] = Query(default=None),
     wijk_statcode: Optional[str] = Query(default=None),
 ) -> Dict[str, Any]:
-    data = await load_admin_data()
-    features = data["buurten"]["features"]
+    if not municipality_gmcode:
+        raise HTTPException(
+            status_code=400,
+            detail="municipality_gmcode is required for buurt requests",
+        )
 
-    if municipality_gmcode:
-        gmcode = normalize_gmcode(municipality_gmcode)
-        if not gmcode:
-            return {"type": "FeatureCollection", "features": []}
-
-        features = [
-            f for f in features
-            if str(f.get("properties", {}).get("_gmcode", "")).strip() == gmcode
-        ]
+    data = await load_buurten_for_municipality(municipality_gmcode)
+    features = data["features"]
 
     if wijk_statcode:
         body = wijk_body(wijk_statcode)
@@ -919,14 +1387,6 @@ async def get_buurten(
         ]
 
     return {"type": "FeatureCollection", "features": features}
-
-
-@app.get("/api/areas/all")
-async def get_all_areas() -> Dict[str, Any]:
-    return await load_admin_data()
-
-
-
 
 
 @app.get("/api/bag/pand/summary")
@@ -1012,4 +1472,38 @@ async def get_bag_pand(
     return {
         "type": "FeatureCollection",
         "features": filtered_features,
+    }
+
+
+@app.get("/api/bag/{object_type}")
+async def get_bag_object(
+    object_type: str,
+    level: str = Query(...),
+    statcode: str = Query(...),
+) -> Dict[str, Any]:
+    object_type_norm = str(object_type or "").strip().lower()
+
+    if object_type_norm not in BAG_COLLECTION_URLS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported BAG object type: {object_type}",
+        )
+
+    area_feature = await get_area_feature(level, statcode)
+    bbox = bbox_from_feature(area_feature)
+    url = f"{BAG_COLLECTION_URLS[object_type_norm]}&bbox={bbox}"
+
+    raw_fc = await fetch_all_features(url, ttl_seconds=15 * 60)
+    filtered_features = [
+        f for f in raw_fc.get("features", []) or []
+        if feature_matches_area_for_bag_object(f, area_feature, object_type_norm)
+    ]
+
+    return {
+        "type": "FeatureCollection",
+        "features": filtered_features,
+        "count": len(filtered_features),
+        "object_type": object_type_norm,
+        "level": level,
+        "statcode": statcode,
     }

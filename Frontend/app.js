@@ -32,12 +32,6 @@
       const bagToggleWoonplaatsEl = document.getElementById("toggleBagWoonplaats");
       const bagToggleStandplaatsEl = document.getElementById("toggleBagStandplaats");
       const bagToggleLigplaatsEl = document.getElementById("toggleBagLigplaats");
-      const bgtToggleWegdeelEl = document.getElementById("toggleBgtWegdeel");
-      const bgtToggleWaterdeelEl = document.getElementById("toggleBgtWaterdeel");
-      const bgtToggleBegroeidEl = document.getElementById("toggleBgtBegroeid");
-      const bgtToggleOnbegroeidEl = document.getElementById("toggleBgtOnbegroeid");
-      const bgtToggleSpoorEl = document.getElementById("toggleBgtSpoor");
-
       const bagToggleEls = {
         pand: bagTogglePandEl,
         verblijfsobject: bagToggleVerblijfsobjectEl,
@@ -47,20 +41,9 @@
         ligplaats: bagToggleLigplaatsEl
       };
 
-      const bgtToggleEls = {
-        wegdeel: bgtToggleWegdeelEl,
-        waterdeel: bgtToggleWaterdeelEl,
-        begroeidterreindeel: bgtToggleBegroeidEl,
-        onbegroeidterreindeel: bgtToggleOnbegroeidEl,
-        spoor: bgtToggleSpoorEl
-      };
-
       const bagAccordionEl = document.getElementById("bagAccordion");
       const bagAccordionToggleEl = document.getElementById("bagAccordionToggle");
       const bagAccordionPanelEl = document.getElementById("bagAccordionPanel");
-      const bgtAccordionEl = document.getElementById("bgtAccordion");
-      const bgtAccordionToggleEl = document.getElementById("bgtAccordionToggle");
-      const bgtAccordionPanelEl = document.getElementById("bgtAccordionPanel");
       function syncAccordion(groupEl, toggleEl, panelEl, animate=false){
         if (!(groupEl && toggleEl && panelEl)) return;
         const isOpen = groupEl.classList.contains('is-open');
@@ -87,9 +70,7 @@
         toggleEl.setAttribute('aria-expanded', opening ? 'true' : 'false');
       }
       function syncBagAccordion(animate=false){ syncAccordion(bagAccordionEl, bagAccordionToggleEl, bagAccordionPanelEl, animate); }
-      function syncBgtAccordion(animate=false){ syncAccordion(bgtAccordionEl, bgtAccordionToggleEl, bgtAccordionPanelEl, animate); }
       function toggleBagAccordion(){ toggleAccordion(bagAccordionEl, bagAccordionToggleEl, bagAccordionPanelEl); }
-      function toggleBgtAccordion(){ toggleAccordion(bgtAccordionEl, bgtAccordionToggleEl, bgtAccordionPanelEl); }
       const legendEl = document.querySelector(".legend");
       const legendBoundarySectionEl = document.getElementById("legendBoundarySection");
       const legendNationalRowEl = document.getElementById("legendNationalRow");
@@ -99,7 +80,6 @@
       const legendBuurtRowEl = document.getElementById("legendBuurtRow");
       const legendDataSectionEl = document.getElementById("legendDataSection");
       const legendBagRowEl = document.getElementById("legendBagRow");
-      const legendBgtRowEl = document.getElementById("legendBgtRow");
       const bagSummaryCardEl = document.getElementById("bagSummaryCard");
       const bagSummaryTitleEl = document.getElementById("bagSummaryTitle");
       const bagSummaryBodyEl = document.getElementById("bagSummaryBody");
@@ -128,7 +108,6 @@
           areaHint: "Begin met een provincie. Selecteer daarna een gemeente, dan een wijk en daarna een buurt. Je kunt ook direct op zichtbare grenzen op de kaart klikken.",
           registriesTitle: "Registraties",
           bagAccordionTitle: "BAG",
-          bgtAccordionTitle: "BGT",
           bagNamePand: "Pand",
           bagNameVerblijfsobject: "Verblijfsobject",
           bagNameAdres: "Adres",
@@ -137,18 +116,11 @@
           bagNameLigplaats: "Ligplaats",
           bagNameOpenbareRuimte: "Openbare ruimte",
           bagNameNummeraanduiding: "Nummeraanduiding",
-          bgtNameWegdeel: "Wegdeel",
-          bgtNameWaterdeel: "Waterdeel",
-          bgtNameBegroeid: "Begroeid terreindeel",
-          bgtNameOnbegroeid: "Onbegroeid terreindeel",
-          bgtNameSpoor: "Spoor",
-          bgtHint: "BGT wordt als featurelaag geladen. Op provincie- en gemeentelijk niveau wordt alleen een samenvatting getoond; op wijk- en buurtniveau ook de kaartlaag.",
           legendBag: "BAG objecten",
-          legendBgt: "BGT objecten",
           bagPopupDefaultTitle: "Object",
           bagSummaryTitle: "Gegevenssamenvatting",
           bagSummaryBadge: "gegevens",
-          bagSummaryChooseArea: "Kies een gebied en schakel BAG of BGT in.",
+          bagSummaryChooseArea: "Kies een gebied en schakel BAG in.",
           bagSummaryNoSelection: "Kies eerst een provincie, gemeente, wijk of buurt.",
           bagSummaryLoading: "BAG-samenvatting laden…",
           bagSummaryUnavailable: "Geen resultaten beschikbaar voor deze selectie.",
@@ -181,7 +153,7 @@
           overviewDialogLabel: "Overzichtsdialoog",
           overviewTitle: "Overzicht",
           overviewClose: "Sluiten",
-          overviewIntro: "Dashboardprototype voor het verkennen van Nederlandse basisregistraties (BGT, BAG, BRO) via administratieve selecties.",
+          overviewIntro: "Dashboardprototype voor het verkennen van Nederlandse basisregistraties via administratieve selecties.",
           howToTitle: "Gebruik",
           howTo1: "Begin met het selecteren van een <b>provincie</b> in de lijst, of klik op een provincie op de kaart.",
           howTo2: "Na het selecteren van een provincie worden de gemeenten binnen die provincie beschikbaar.",
@@ -229,13 +201,6 @@
           bagSummaryOnlySummaryAtLevelPrefix: "Op ",
           bagSummaryOnlySummaryAtLevelSuffix: "niveau wordt alleen de samenvatting getoond.",
           summaryNoObjectsLoaded: "Geen objecten geladen.",
-          bgtSummaryActiveLayers: "Actieve BGT-lagen",
-          bgtSummaryMapAndSummaryLoading: "Kaartlaag en samenvatting laden…",
-          bgtSummaryOnlyLoading: "Samenvatting laden…",
-          bgtSummaryObjects: "BGT-objecten",
-          bgtSummaryShownOnMap: "BGT wordt op de kaart getoond voor dit detailniveau.",
-          bgtSummaryOnlySummaryAtLevelPrefix: "Op ",
-          bgtSummaryOnlySummaryAtLevelSuffix: "niveau wordt alleen de samenvatting getoond.",
           partialLoadNotePrefix: "Let op: gedeeltelijk geladen voor ",
           summaryLoadFailed: "Laden mislukt.",
           summaryLoadFailedShort: "Laden mislukt",
@@ -261,7 +226,6 @@
           areaHint: "Start with a province. Then select a municipality, then a district, and then a neighborhood. You can also click directly on visible boundaries on the map.",
           registriesTitle: "Registries",
           bagAccordionTitle: "BAG",
-          bgtAccordionTitle: "BGT",
           bagNamePand: "Building",
           bagNameVerblijfsobject: "Residential unit",
           bagNameAdres: "Address",
@@ -270,18 +234,11 @@
           bagNameLigplaats: "Mooring place",
           bagNameOpenbareRuimte: "Public space",
           bagNameNummeraanduiding: "Address number",
-          bgtNameWegdeel: "Road segment",
-          bgtNameWaterdeel: "Water body",
-          bgtNameBegroeid: "Vegetated terrain part",
-          bgtNameOnbegroeid: "Non-vegetated terrain part",
-          bgtNameSpoor: "Railway",
-          bgtHint: "BGT is loaded as a feature layer. At province and municipality level only a summary is shown; at district and neighborhood level the map layer is shown as well.",
           legendBag: "BAG objects",
-          legendBgt: "BGT objects",
           bagPopupDefaultTitle: "Object",
           bagSummaryTitle: "Data summary",
           bagSummaryBadge: "data",
-          bagSummaryChooseArea: "Choose an area and enable BAG or BGT.",
+          bagSummaryChooseArea: "Choose an area and enable BAG.",
           bagSummaryNoSelection: "First choose a province, municipality, district, or neighborhood.",
           bagSummaryLoading: "Loading BAG summary…",
           bagSummaryUnavailable: "No results available for this selection.",
@@ -314,7 +271,7 @@
           overviewDialogLabel: "Overview dialog",
           overviewTitle: "Overview",
           overviewClose: "Close",
-          overviewIntro: "Dashboard prototype for exploring Dutch base registries (BGT, BAG, BRO) through administrative selections.",
+          overviewIntro: "Dashboard prototype for exploring Dutch base registries through administrative selections.",
           howToTitle: "How to use",
           howTo1: "Start by selecting a <b>province</b> from the list, or click a province on the map.",
           howTo2: "After selecting a province, the municipalities within that province become available.",
@@ -362,13 +319,6 @@
           bagSummaryOnlySummaryAtLevelPrefix: "At ",
           bagSummaryOnlySummaryAtLevelSuffix: " level only the summary is shown.",
           summaryNoObjectsLoaded: "No objects loaded.",
-          bgtSummaryActiveLayers: "Active BGT layers",
-          bgtSummaryMapAndSummaryLoading: "Loading map layer and summary…",
-          bgtSummaryOnlyLoading: "Loading summary…",
-          bgtSummaryObjects: "BGT objects",
-          bgtSummaryShownOnMap: "BGT is shown on the map at this detail level.",
-          bgtSummaryOnlySummaryAtLevelPrefix: "At ",
-          bgtSummaryOnlySummaryAtLevelSuffix: " level only the summary is shown.",
           partialLoadNotePrefix: "Note: partially loaded for ",
           formatLocale: "en-GB"
         }
@@ -402,33 +352,82 @@
       function setText(id, value){ const el = document.getElementById(id); if (el) el.textContent = value; }
       function setHtml(id, value){ const el = document.getElementById(id); if (el) el.innerHTML = value; }
 
-      function refreshSelectionUi(){
-        if (allProvinces.length){
-          populateProvinces();
-          selProvincieEl.value = state.provinceStatcode || "";
-        } else {
-          resetProvinceSelect(tr("loadingProvinces"));
-        }
-        if (state.provinceStatcode){
-          populateMunicipalities();
-          selGemeenteEl.value = state.gemeenteStatcode || "";
-        } else {
-          resetMunicipalitySelect(tr("selectProvinceFirst"));
-        }
-        if (state.gmCode){
-          populateWijken();
-          selWijkEl.value = state.wijkStatcode || "";
-        } else {
-          resetWijkSelect(tr("selectMunicipalityFirst"));
-        }
-        if (state.gmCode && state.wijkStatcode){
-          populateBuurten();
-          selBuurtEl.value = state.buurtStatcode || "";
-        } else {
-          resetBuurtSelect(tr("selectWijkFirst"));
-        }
-        updateInfoBox();
+      function refreshSelectionLabelsOnly(){
+  if (allProvinces.length){
+    populateProvinces();
+    selProvincieEl.value = state.provinceStatcode || "";
+  } else {
+    resetProvinceSelect(tr("loadingProvinces"));
+  }
+
+  if (state.provinceStatcode){
+    const rows = allGemeenten
+      .map(f => ({ id: f.properties._statcode, name: f.properties._statnaam }))
+      .sort((a,b) => a.name.localeCompare(b.name, "nl"));
+
+    if (!rows.length){
+      resetMunicipalitySelect(tr("noMunicipalitiesFound"));
+    } else {
+      selGemeenteEl.innerHTML = `<option value="">${tr("allMunicipalities")}</option>`;
+      for (const row of rows){
+        const opt = document.createElement("option");
+        opt.value = row.id;
+        opt.textContent = `${row.name} (${row.id})`;
+        selGemeenteEl.appendChild(opt);
       }
+      selGemeenteEl.disabled = false;
+      selGemeenteEl.value = state.gemeenteStatcode || "";
+    }
+  } else {
+    resetMunicipalitySelect(tr("selectProvinceFirst"));
+  }
+
+  if (state.gmCode){
+    const rows = visibleWijken
+      .map(f => ({ id: f.properties._statcode, name: f.properties._statnaam }))
+      .sort((a,b) => a.name.localeCompare(b.name, "nl"));
+
+    if (!rows.length){
+      resetWijkSelect(tr("noWijkFound"));
+    } else {
+      selWijkEl.innerHTML = `<option value="">${tr("allWijken")}</option>`;
+      for (const row of rows){
+        const opt = document.createElement("option");
+        opt.value = row.id;
+        opt.textContent = `${row.name} (${row.id})`;
+        selWijkEl.appendChild(opt);
+      }
+      selWijkEl.disabled = false;
+      selWijkEl.value = state.wijkStatcode || "";
+    }
+  } else {
+    resetWijkSelect(tr("selectMunicipalityFirst"));
+  }
+
+  if (state.gmCode && state.wijkStatcode){
+    const rows = visibleBuurten
+      .map(f => ({ id: f.properties._statcode, name: f.properties._statnaam }))
+      .sort((a,b) => a.name.localeCompare(b.name, "nl"));
+
+    if (!rows.length){
+      resetBuurtSelect(tr("noBuurtFound"));
+    } else {
+      selBuurtEl.innerHTML = `<option value="">${tr("allBuurten")}</option>`;
+      for (const row of rows){
+        const opt = document.createElement("option");
+        opt.value = row.id;
+        opt.textContent = `${row.name} (${row.id})`;
+        selBuurtEl.appendChild(opt);
+      }
+      selBuurtEl.disabled = false;
+      selBuurtEl.value = state.buurtStatcode || "";
+    }
+  } else {
+    resetBuurtSelect(tr("selectWijkFirst"));
+  }
+
+  updateInfoBox();
+}
 
       function refreshBasemapPopoverTexts(){
         if (!basemapPopoverEl) return;
@@ -461,7 +460,6 @@
         setText('areaHint', tr('areaHint'));
         setText('registriesTitle', tr('registriesTitle'));
         setText('bagAccordionTitle', tr('bagAccordionTitle'));
-        setText('bgtAccordionTitle', tr('bgtAccordionTitle'));
         setText('bagNamePand', tr('bagNamePand'));
         setText('bagNameVerblijfsobject', tr('bagNameVerblijfsobject'));
         setText('bagNameAdres', tr('bagNameAdres'));
@@ -470,12 +468,6 @@
         setText('bagNameLigplaats', tr('bagNameLigplaats'));
         setText('bagNameOpenbareRuimte', tr('bagNameOpenbareRuimte'));
         setText('bagNameNummeraanduiding', tr('bagNameNummeraanduiding'));
-        setText('bgtNameWegdeel', tr('bgtNameWegdeel'));
-        setText('bgtNameWaterdeel', tr('bgtNameWaterdeel'));
-        setText('bgtNameBegroeid', tr('bgtNameBegroeid'));
-        setText('bgtNameOnbegroeid', tr('bgtNameOnbegroeid'));
-        setText('bgtNameSpoor', tr('bgtNameSpoor'));
-        setText('bgtHint', tr('bgtHint'));
         setText('descBro', tr('descBro'));
         setText('legendTitleText', tr('legendTitle'));
         setText('legendBoundaryGroup', tr('legendBoundaryGroup'));
@@ -486,7 +478,6 @@
         setText('legendWijk', tr('legendWijk'));
         setText('legendBuurt', tr('legendBuurt'));
         setText('legendBag', tr('legendBag'));
-        setText('legendBgt', tr('legendBgt'));
         updateLegendContext();
         setText('bagSummaryTitle', tr('bagSummaryTitle'));
         setText('bagSummaryBadge', tr('bagSummaryBadge'));
@@ -507,7 +498,7 @@
         if (homeBtnEl) homeBtnEl.title = tr('homeTitle');
         if (bmBtnEl) bmBtnEl.title = tr('basemapTitle');
         refreshBasemapPopoverTexts();
-        refreshSelectionUi();
+        refreshSelectionLabelsOnly();
       }
 
       function setLanguage(lang){
@@ -515,7 +506,6 @@
         try{ localStorage.setItem('dashboardLang', currentLang); }catch(_){}
         applyLanguageText();
         refreshBagView().catch(err => console.warn("BAG refresh failed", err));
-        refreshBgtView().catch(err => console.warn("BGT refresh failed", err));
       }
 
       function openOverview(open){ overviewModal.classList.toggle("open", !!open); }
@@ -532,22 +522,18 @@
       const DEFAULT_VIEW = { center: [5.3, 52.1], zoom: 6.5, bearing: 0, pitch: 0 };
       const YEARCODE = 2025;
       const BACKEND_BASE_URL = "http://127.0.0.1:8000";
+
       const PDOK_STYLE_URL = "https://api.pdok.nl/kadaster/brk-bestuurlijke-gebieden/ogc/v1/styles/bestuurlijkegebieden_standaardvisualisatie__webmercatorquad?f=json";
       const LAND_FEATURES_URL = "https://api.pdok.nl/kadaster/brk-bestuurlijke-gebieden/ogc/v1/collections/landgebied/items?f=json&limit=10";
       const BRT_TILES = "https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/{z}/{x}/{y}.png";
       const LUCHTFOTO_WMTS_CAPS = "https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0?request=GetCapabilities&service=WMTS";
       const WORLD_TOPO = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json";
-      const CBS_PROVINCIE_URL = `https://api.pdok.nl/cbs/gebiedsindelingen/ogc/v1/collections/provincie_gegeneraliseerd/items?f=json&limit=1000&jaarcode=${YEARCODE}`;
-      const CBS_GEMEENTE_URL = `https://api.pdok.nl/cbs/gebiedsindelingen/ogc/v1/collections/gemeente_gegeneraliseerd/items?f=json&limit=1000&jaarcode=${YEARCODE}`;
-      const CBS_WIJK_URL = `https://api.pdok.nl/cbs/gebiedsindelingen/ogc/v1/collections/wijk_gegeneraliseerd/items?f=json&limit=1000&jaarcode=${YEARCODE}`;
-      const CBS_BUURT_URL = `https://api.pdok.nl/cbs/gebiedsindelingen/ogc/v1/collections/buurt_gegeneraliseerd/items?f=json&limit=1000&jaarcode=${YEARCODE}`;
       const BAG_COLLECTIONS = {
         pand: {
           label: { nl:"Pand", en:"Building" },
           popupTitle: { nl:"BAG pand", en:"BAG building" },
           url: "https://api.pdok.nl/kadaster/bag/ogc/v2/collections/pand/items?f=json&limit=1000",
           geometry: "polygon",
-          caps: { province: 4000, municipality: 6000, wijk: 9000, buurt: 12000 },
           fill: "#d9c4a6",
           line: "#8b5e3c",
           fillOpacity: 0.42
@@ -557,7 +543,6 @@
           popupTitle: { nl:"BAG verblijfsobject", en:"BAG residential unit" },
           url: "https://api.pdok.nl/kadaster/bag/ogc/v2/collections/verblijfsobject/items?f=json&limit=1000",
           geometry: "point",
-          caps: { province: 4000, municipality: 6000, wijk: 9000, buurt: 12000 },
           circle: "#0ea5e9",
           radius: 4.8
         },
@@ -566,7 +551,6 @@
           popupTitle: { nl:"BAG adres", en:"BAG address" },
           url: "https://api.pdok.nl/kadaster/bag/ogc/v2/collections/adres/items?f=json&limit=1000",
           geometry: "point",
-          caps: { province: 4000, municipality: 6000, wijk: 9000, buurt: 12000 },
           circle: "#f97316",
           radius: 4.2
         },
@@ -575,7 +559,6 @@
           popupTitle: { nl:"BAG woonplaats", en:"BAG place" },
           url: "https://api.pdok.nl/kadaster/bag/ogc/v2/collections/woonplaats/items?f=json&limit=1000",
           geometry: "polygon",
-          caps: { province: 3000, municipality: 4000, wijk: 5000, buurt: 5000 },
           fill: "#bbf7d0",
           line: "#16a34a",
           fillOpacity: 0.10
@@ -585,7 +568,6 @@
           popupTitle: { nl:"BAG standplaats", en:"BAG standplace" },
           url: "https://api.pdok.nl/kadaster/bag/ogc/v2/collections/standplaats/items?f=json&limit=1000",
           geometry: "polygon",
-          caps: { province: 3000, municipality: 5000, wijk: 7000, buurt: 9000 },
           fill: "#fde68a",
           line: "#d97706",
           fillOpacity: 0.34
@@ -595,66 +577,12 @@
           popupTitle: { nl:"BAG ligplaats", en:"BAG mooring place" },
           url: "https://api.pdok.nl/kadaster/bag/ogc/v2/collections/ligplaats/items?f=json&limit=1000",
           geometry: "polygon",
-          caps: { province: 3000, municipality: 5000, wijk: 7000, buurt: 9000 },
           fill: "#c7d2fe",
           line: "#4f46e5",
           fillOpacity: 0.34
         }
       };
       const ALL_BAG_KEYS = Object.keys(BAG_COLLECTIONS);
-      const BGT_COLLECTIONS = {
-        wegdeel: {
-          label: { nl:"Wegdeel", en:"Road segment" },
-          popupTitle: { nl:"BGT wegdeel", en:"BGT road segment" },
-          url: "https://api.pdok.nl/lv/bgt/ogc/v1/collections/wegdeel/items?f=json&limit=1000",
-          geometry: "polygon",
-          caps: { province: 3500, municipality: 5000, wijk: 9000, buurt: 12000 },
-          fill: "#cbd5e1",
-          line: "#475569",
-          fillOpacity: 0.36
-        },
-        waterdeel: {
-          label: { nl:"Waterdeel", en:"Water body" },
-          popupTitle: { nl:"BGT waterdeel", en:"BGT water body" },
-          url: "https://api.pdok.nl/lv/bgt/ogc/v1/collections/waterdeel/items?f=json&limit=1000",
-          geometry: "polygon",
-          caps: { province: 3500, municipality: 5000, wijk: 9000, buurt: 12000 },
-          fill: "#93c5fd",
-          line: "#2563eb",
-          fillOpacity: 0.34
-        },
-        begroeidterreindeel: {
-          label: { nl:"Begroeid terreindeel", en:"Vegetated terrain part" },
-          popupTitle: { nl:"BGT begroeid terreindeel", en:"BGT vegetated terrain part" },
-          url: "https://api.pdok.nl/lv/bgt/ogc/v1/collections/begroeidterreindeel/items?f=json&limit=1000",
-          geometry: "polygon",
-          caps: { province: 3500, municipality: 5000, wijk: 9000, buurt: 12000 },
-          fill: "#86efac",
-          line: "#16a34a",
-          fillOpacity: 0.30
-        },
-        onbegroeidterreindeel: {
-          label: { nl:"Onbegroeid terreindeel", en:"Non-vegetated terrain part" },
-          popupTitle: { nl:"BGT onbegroeid terreindeel", en:"BGT non-vegetated terrain part" },
-          url: "https://api.pdok.nl/lv/bgt/ogc/v1/collections/onbegroeidterreindeel/items?f=json&limit=1000",
-          geometry: "polygon",
-          caps: { province: 3500, municipality: 5000, wijk: 9000, buurt: 12000 },
-          fill: "#f5deb3",
-          line: "#b45309",
-          fillOpacity: 0.30
-        },
-        spoor: {
-          label: { nl:"Spoor", en:"Railway" },
-          popupTitle: { nl:"BGT spoor", en:"BGT railway" },
-          url: "https://api.pdok.nl/lv/bgt/ogc/v1/collections/spoor/items?f=json&limit=1000",
-          geometry: "line",
-          caps: { province: 2500, municipality: 3500, wijk: 7000, buurt: 9000 },
-          line: "#be123c",
-          lineWidth: 1.8
-        }
-      };
-      const ALL_BGT_KEYS = Object.keys(BGT_COLLECTIONS);
-
       const provinceByStatcode = new Map();
       const gemeenteByStatcode = new Map();
       const gmToProvinceStatcode = new Map();
@@ -665,11 +593,8 @@
       let resetToNationalView = () => {};
       let bagPopup = null;
       let bagFeatureRequestId = 0;
-      let bgtFeatureRequestId = 0;
       const bagFeatureCache = new Map();
-      const bgtFeatureCache = new Map();
       let bagSummarySectionHtml = "";
-      let bgtSummarySectionHtml = "";
       const AUTO_RETRY_DELAYS_MS = [1500, 4000, 8000];
 
       function registrySummarySectionHtml(registryName, innerHtml){
@@ -681,7 +606,7 @@
 
       function updateDataSummaryCard(){
         if (!(bagSummaryCardEl && bagSummaryBodyEl)) return;
-        const sections = [bagSummarySectionHtml, bgtSummarySectionHtml].filter(Boolean);
+        const sections = [bagSummarySectionHtml].filter(Boolean);
         if (!sections.length){
           bagSummaryCardEl.style.display = 'none';
           delete bagSummaryBodyEl.dataset.dynamic;
@@ -752,31 +677,10 @@
       function wijkBody(statcode){ const m = String(statcode || "").match(/WK(.+)/i); return m ? m[1] : ""; }
       function prettyName(props){ return String(props?.statnaam || props?.naam || props?.name || ""); }
       function prettyStatcode(props){ return String(props?.statcode || props?.code || ""); }
-      function preprocessFeatures(fc, kind){
-        const out = { type: "FeatureCollection", features: [] };
-        for (const f of (fc?.features || [])){
-          const p = f.properties || {};
-          const statcode = prettyStatcode(p);
-          p._kind = kind; p._statcode = statcode; p._statnaam = prettyName(p);
-          p._gmcode = municipalityCodeFromStatcode(statcode) || normalizeGmCode(p.gm_code);
-          p._wijkbody = wijkBody(statcode); p._pvstatcode = ""; out.features.push(f);
-        }
-        return out;
-      }
+      
       async function fetchWithTimeout(url, ms=7000){ const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), ms); try{ return await fetch(url, { signal: ctrl.signal }); } finally { clearTimeout(t); } }
       async function fetchBackendJson(path, ms=20000){ const url = `${BACKEND_BASE_URL}${path}`; const response = await fetchWithTimeout(url, ms); if (!response.ok) throw new Error(`Backend request failed: ${url} (${response.status})`); return await response.json(); }
-      async function fetchAllFeatures(startUrl, maxCount=Infinity){
-        const all = []; let next = startUrl; let truncated = false;
-        while (next){
-          const r = await fetchWithTimeout(next, 20000); if (!r.ok) throw new Error(`Failed to load ${next}: ${r.status}`);
-          const fc = await r.json(); const batch = fc?.features || [];
-          if (all.length + batch.length > maxCount){ all.push(...batch.slice(0, Math.max(0, maxCount - all.length))); truncated = true; break; }
-          all.push(...batch); next = null;
-          for (const l of (fc.links || [])){ if (l.rel === "next" && l.href){ next = l.href; break; } }
-          if (all.length >= maxCount){ truncated = true; break; }
-        }
-        return { type: "FeatureCollection", features: all, _truncated: truncated };
-      }
+      
       function geojsonBounds(feature){
         let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
         function scanCoords(coords){ if (!coords) return; if (typeof coords[0] === "number" && typeof coords[1] === "number"){ const x = coords[0], y = coords[1]; if (x < minX) minX = x; if (y < minY) minY = y; if (x > maxX) maxX = x; if (y > maxY) maxY = y; return; } for (const c of coords) scanCoords(c); }
@@ -787,16 +691,7 @@
       function pointInPolygon(point, polyCoords){ if (!polyCoords?.length || !pointInRing(point, polyCoords[0])) return false; for (let i=1; i<polyCoords.length; i++){ if (pointInRing(point, polyCoords[i])) return false; } return true; }
       function pointInGeometry(point, geom){ if (!geom) return false; if (geom.type === "Polygon") return pointInPolygon(point, geom.coordinates); if (geom.type === "MultiPolygon") return (geom.coordinates || []).some(poly => pointInPolygon(point, poly)); if (geom.type === "GeometryCollection") return (geom.geometries || []).some(g => pointInGeometry(point, g)); return false; }
       function featureProbePoint(feature){ const b = geojsonBounds(feature); return b ? [(b[0][0]+b[1][0])/2, (b[0][1]+b[1][1])/2] : null; }
-      function assignProvinceLinks(){
-        gmToProvinceStatcode.clear();
-        for (const g of allGemeenten){
-          const probe = featureProbePoint(g); let pv = "";
-          if (probe){ for (const p of allProvinces){ if (pointInGeometry(probe, p.geometry)){ pv = p.properties?._statcode || ""; break; } } }
-          g.properties._pvstatcode = pv; gmToProvinceStatcode.set(g.properties._statcode, pv);
-        }
-        for (const w of allWijken){ w.properties._pvstatcode = gmToProvinceStatcode.get(`GM${w.properties._gmcode}`) || ""; }
-        for (const b of allBuurten){ b.properties._pvstatcode = gmToProvinceStatcode.get(`GM${b.properties._gmcode}`) || ""; }
-      }
+     
       function firstLayerId(){ const layers = map.getStyle().layers || []; return layers.length ? layers[0].id : null; }
       function firstNonBackgroundLayerId(){ const layers = map.getStyle().layers || []; for (const lyr of layers){ if (lyr.type !== "background") return lyr.id; } return null; }
       function ensureWhiteBackground(){ const layers = map.getStyle().layers || []; const bg = layers.find(l => l.type === "background"); if (bg){ map.setPaintProperty(bg.id, "background-color", "#ffffff"); map.setPaintProperty(bg.id, "background-opacity", 1.0); } else { map.addLayer({ id:"bg-white", type:"background", paint:{"background-color":"#ffffff","background-opacity":1.0} }, firstLayerId() || undefined); } }
@@ -1045,36 +940,6 @@
         return (fc?.features || []).filter(f => bagFeatureMatchesAreaForMap(f, areaFeature, key));
       }
 
-      function isCurrentBgtFeature(feature){
-        const props = feature?.properties || {};
-        return !String(props.eind_registratie ?? '').trim() && !String(props.termination_date ?? '').trim();
-      }
-
-      function filterBgtFeaturesToArea(fc, areaFeature, key){
-        if (!areaFeature?.geometry) return [];
-        const cfg = key ? BGT_COLLECTIONS[key] : null;
-        return (fc?.features || []).filter(f => {
-          if (!isCurrentBgtFeature(f)) return false;
-          return featureMatchesAreaGeometry(f, areaFeature, cfg?.geometry);
-        });
-      }
-
-      function getCurrentBagAreaFeature(){
-        if (state.buurtStatcode) return allBuurten.find(x => x.properties._statcode === state.buurtStatcode) || null;
-        if (state.wijkStatcode) return allWijken.find(x => x.properties._statcode === state.wijkStatcode) || null;
-        if (state.gemeenteStatcode) return gemeenteByStatcode.get(state.gemeenteStatcode) || null;
-        if (state.provinceStatcode) return provinceByStatcode.get(state.provinceStatcode) || null;
-        return null;
-      }
-
-      function currentBagAreaLevel(){
-        if (state.buurtStatcode) return 'buurt';
-        if (state.wijkStatcode) return 'wijk';
-        if (state.gemeenteStatcode) return 'municipality';
-        if (state.provinceStatcode) return 'province';
-        return '';
-      }
-
       function activeBagKeys(){
         return ALL_BAG_KEYS.filter(key => !!bagToggleEls[key]?.checked);
       }
@@ -1096,16 +961,11 @@
       }
 
       function allDataRenderableLayerIds(){
-        return [...allBgtRenderableLayerIds(), ...allBagRenderableLayerIds()];
+        return allBagRenderableLayerIds();
       }
 
       function bagKeyFromLayerId(layerId){
         const m = String(layerId || '').match(/^bag-(.+?)-(fill|line|circle)$/);
-        return m ? m[1] : '';
-      }
-
-      function bgtKeyFromLayerId(layerId){
-        const m = String(layerId || '').match(/^bgt-(.+?)-(fill|line)$/);
         return m ? m[1] : '';
       }
 
@@ -1241,8 +1101,7 @@
       function bagPopupHtml(feature){
         const props = feature?.properties || {};
         const bagKey = bagKeyFromLayerId(feature?.layer?.id);
-        const bgtKey = bgtKeyFromLayerId(feature?.layer?.id);
-        const cfg = bagKey ? BAG_COLLECTIONS[bagKey] : BGT_COLLECTIONS[bgtKey];
+        const cfg = BAG_COLLECTIONS[bagKey];
         const title = collectionPopupTitle(cfg) || tr('bagPopupDefaultTitle');
         const rows = [];
         const seen = new Set();
@@ -1395,58 +1254,36 @@
         updateLegendContext();
       }
 
-      function updateBgtLegend(activeKeys, countsByKey = {}, showMap = false){
-        const visibleKeys = activeKeys.filter(key => (countsByKey[key] || 0) > 0);
-        const keysForLabel = visibleKeys.length ? visibleKeys : activeKeys;
-
-        if (!showMap || !keysForLabel.length){
-          if (legendBgtRowEl) legendBgtRowEl.style.display = 'none';
-          updateLegendContext();
-          return;
-        }
-
-        setText('legendBgt', `BGT ${keysForLabel.map(key => collectionLabel(BGT_COLLECTIONS[key])).join(' / ')}`);
-        if (legendBgtRowEl) legendBgtRowEl.style.display = 'flex';
-        updateLegendContext();
-      }
-
       function bagCacheKey(key, level, statcode){
-        return `${key}:${level}:${statcode}`;
-      }
-
-      function bgtCacheKey(key, level, statcode){
         return `${key}:${level}:${statcode}`;
       }
 
       async function loadBagFeaturesForArea(key, areaFeature, level){
         const cfg = BAG_COLLECTIONS[key];
         const statcode = String(areaFeature?.properties?._statcode || '').trim();
-        if (!cfg || !statcode || !level) return { type:'FeatureCollection', features: [], _truncated:false, _summaryCount: 0 };
 
-        if (key === 'pand'){
-          const params = new URLSearchParams({ level, statcode });
-          const fc = await fetchBackendJson(`/api/bag/pand?${params.toString()}`, 60000);
+        if (!cfg || !statcode || !level) {
           return {
-            type:'FeatureCollection',
-            features: fc.features || [],
-            _truncated: !!fc._truncated,
-            _summaryCount: Number.isFinite(fc.count) ? fc.count : ((fc.features || []).length)
+            type: 'FeatureCollection',
+            features: [],
+            _truncated: false,
+            _summaryCount: 0
           };
         }
 
-        const bbox = bboxStringForFeature(areaFeature);
-        if (!bbox) return { type:'FeatureCollection', features: [], _truncated:false, _summaryCount: 0 };
+        const params = new URLSearchParams({ level, statcode });
+        const fc = await fetchBackendJson(
+          `/api/bag/${encodeURIComponent(key)}?${params.toString()}`,
+          60000
+        );
 
-        const fc = await fetchFeaturesAllPages(`${cfg.url}&bbox=${encodeURIComponent(bbox)}`);
-        const mapFeatures = filterBagFeaturesToArea(fc, areaFeature, key);
-        const summaryCount = (cfg.geometry === 'point')
-          ? mapFeatures.length
-          : mapFeatures.reduce((count, feature) => count + (bagFeatureMatchesAreaForSummary(feature, areaFeature, level, key) ? 1 : 0), 0);
+        const features = fc?.features || [];
+        const summaryCount = Number.isFinite(fc?.count) ? fc.count : features.length;
 
         return {
-          type:'FeatureCollection',
-          features: mapFeatures,
-          _truncated: false,
+          type: 'FeatureCollection',
+          features,
+          _truncated: !!fc?._truncated,
           _summaryCount: summaryCount
         };
       }
@@ -1467,181 +1304,8 @@
         return { count: null };
       }
 
-      async function loadBgtFeaturesForArea(key, areaFeature, level){
-        const cfg = BGT_COLLECTIONS[key];
-        const bbox = bboxStringForFeature(areaFeature);
-        if (!bbox || !cfg) return { type:'FeatureCollection', features: [], _truncated:false };
-
-        const fc = await fetchFeaturesAllPages(`${cfg.url}&bbox=${encodeURIComponent(bbox)}`);
-        const filtered = filterBgtFeaturesToArea(fc, areaFeature, key);
-
-        return {
-          type:'FeatureCollection',
-          features: filtered,
-          _truncated: false
-        };
-      }
-
       function getCurrentBagAreaFeature(){ return selectedAreaFeature(); }
       function currentBagAreaLevel(){ return selectedAreaLevel(); }
-      function getCurrentBgtAreaFeature(){ return selectedAreaFeature(); }
-      function currentBgtAreaLevel(){ return selectedAreaLevel(); }
-
-      function activeBgtKeys(){
-        return ALL_BGT_KEYS.filter(key => !!bgtToggleEls[key]?.checked);
-      }
-
-      function bgtSourceId(key){ return `bgt-${key}-features`; }
-      function bgtLayerIdsForKey(key){
-        const cfg = BGT_COLLECTIONS[key];
-        if (!cfg) return [];
-        if (cfg.geometry === 'line') return [`bgt-${key}-line`];
-        return [`bgt-${key}-fill`, `bgt-${key}-line`];
-      }
-      function allBgtRenderableLayerIds(){
-        return ALL_BGT_KEYS.flatMap(key => bgtLayerIdsForKey(key)).filter(id => map.getLayer(id));
-      }
-      function setBgtKeyData(key, fc){
-        const source = map.getSource(bgtSourceId(key));
-        if (source) source.setData(fc || { type:'FeatureCollection', features: [] });
-      }
-      function setBgtKeyVisibility(key, visible){
-        for (const id of bgtLayerIdsForKey(key)){
-          if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
-        }
-      }
-      function clearAllBgtLayers(){
-        for (const key of ALL_BGT_KEYS){
-          setBgtKeyData(key, { type:'FeatureCollection', features: [] });
-          setBgtKeyVisibility(key, false);
-        }
-      }
-      function ensureBgtFeatureLayers(){
-        for (const [key, cfg] of Object.entries(BGT_COLLECTIONS)){
-          const sourceId = bgtSourceId(key);
-          if (!map.getSource(sourceId)){
-            map.addSource(sourceId, { type:'geojson', data:{ type:'FeatureCollection', features: [] } });
-          }
-          if (cfg.geometry === 'line'){
-            const lineId = `bgt-${key}-line`;
-            if (!map.getLayer(lineId)){
-              map.addLayer({
-                id: lineId,
-                type: 'line',
-                source: sourceId,
-                layout: { visibility: 'none', 'line-join':'round', 'line-cap':'round' },
-                paint: {
-                  'line-color': cfg.line,
-                  'line-opacity': 0.92,
-                  'line-width': ['interpolate', ['linear'], ['zoom'], 10, Math.max(1.0, (cfg.lineWidth || 1.8) - 0.5), 13, cfg.lineWidth || 1.8, 16, (cfg.lineWidth || 1.8) + 0.8]
-                }
-              }, 'cbs-provincie-hit');
-            }
-          } else {
-            const fillId = `bgt-${key}-fill`;
-            const lineId = `bgt-${key}-line`;
-            if (!map.getLayer(fillId)){
-              map.addLayer({
-                id: fillId,
-                type: 'fill',
-                source: sourceId,
-                layout: { visibility: 'none' },
-                paint: {
-                  'fill-color': cfg.fill,
-                  'fill-opacity': ['interpolate', ['linear'], ['zoom'], 10, Math.max(0.08, cfg.fillOpacity - 0.08), 13, cfg.fillOpacity, 16, Math.min(0.62, cfg.fillOpacity + 0.08)]
-                }
-              }, 'cbs-provincie-hit');
-            }
-            if (!map.getLayer(lineId)){
-              map.addLayer({
-                id: lineId,
-                type: 'line',
-                source: sourceId,
-                layout: { visibility: 'none' },
-                paint: {
-                  'line-color': cfg.line,
-                  'line-opacity': 0.9,
-                  'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.45, 13, 0.9, 16, 1.4]
-                }
-              }, 'cbs-provincie-hit');
-            }
-          }
-        }
-      }
-
-      function renderBgtSummaryMessage(message){
-        bgtSummarySectionHtml = registrySummarySectionHtml('BGT', `<div class="summaryNote">${escapeHtml(message)}</div>`);
-        updateDataSummaryCard();
-      }
-
-      function renderBgtLayerSummarySkeleton(level, activeKeys, showMap, statusMessage=''){
-        const rows = activeKeys.slice(0, 5).map(() => `
-          <div class="summarySkeletonRow">
-            <span class="summarySkeletonBar" style="width:136px;"></span>
-            <span class="summarySkeletonBar" style="width:52px;"></span>
-          </div>
-        `).join('');
-
-        bgtSummarySectionHtml = registrySummarySectionHtml('BGT', `
-          <div class="summarySkeleton" aria-hidden="true">
-            <div class="summarySkeletonRow">
-              <span>${escapeHtml(tr('bagSummaryArea'))}</span>
-              <span class="summarySkeletonBar" style="width:140px;"></span>
-            </div>
-            <div class="summarySkeletonRow">
-              <span>${escapeHtml(tr('bagSummaryLevel'))}</span>
-              <strong>${escapeHtml(bagLevelLabel(level))}</strong>
-            </div>
-            <div class="summarySkeletonBox">
-              <div class="summaryMetricLabel">${escapeHtml(tr('bgtSummaryActiveLayers'))}</div>
-              <div class="summarySkeletonStack">${rows}</div>
-            </div>
-            <div class="summaryNote">${escapeHtml(statusMessage || (showMap ? tr('bgtSummaryMapAndSummaryLoading') : tr('bgtSummaryOnlyLoading')))}</div>
-          </div>
-        `);
-        updateDataSummaryCard();
-      }
-
-      function renderBgtLayerSummary(rows, areaFeature, level, partialKeys, showMap, extraNote=''){
-        if (!areaFeature) return;
-        const areaLabel = `${prettyName(areaFeature.properties)} (${areaFeature.properties?._statcode || ''})`;
-        const rowHtml = rows.map(row => {
-          const valueText = row.error ? tr('summaryLoadFailedShort') : formatNumber(row.count);
-          return `
-          <div class="summaryRow">
-            <span>${escapeHtml(row.label)}</span>
-            <strong>${escapeHtml(valueText)}</strong>
-          </div>
-        `;
-        }).join('');
-        const partialNote = partialKeys.length
-          ? `<div class="summaryNote">${escapeHtml(tr('partialLoadNotePrefix'))}${escapeHtml(partialKeys.join(', '))}.</div>`
-          : '';
-        const extraNoteHtml = extraNote ? `<div class="summaryNote">${escapeHtml(extraNote)}</div>` : '';
-        const modeNote = showMap
-          ? `<div class="summaryNote">${escapeHtml(tr('bgtSummaryShownOnMap'))}</div>`
-          : `<div class="summaryNote">${escapeHtml(tr('bgtSummaryOnlySummaryAtLevelPrefix'))}${escapeHtml(bagLevelLabel(level).toLowerCase())}${escapeHtml(tr('bgtSummaryOnlySummaryAtLevelSuffix'))}</div>`;
-
-        bgtSummarySectionHtml = registrySummarySectionHtml('BGT', `
-          <div class="summaryRow">
-            <span>${escapeHtml(tr('bagSummaryArea'))}</span>
-            <strong>${escapeHtml(areaLabel)}</strong>
-          </div>
-          <div class="summaryRow">
-            <span>${escapeHtml(tr('bagSummaryLevel'))}</span>
-            <strong>${escapeHtml(bagLevelLabel(level))}</strong>
-          </div>
-          <div class="summaryList" style="margin-top:10px;">
-            <div class="summaryMetricLabel">${escapeHtml(tr('bgtSummaryObjects'))}</div>
-            ${rowHtml || `<div class="summaryNote">${escapeHtml(tr('summaryNoObjectsLoaded'))}</div>`}
-          </div>
-          ${modeNote}
-          ${partialNote}
-          ${extraNoteHtml}
-        `);
-        updateDataSummaryCard();
-      }
-
 
       async function refreshBagView(){
         const activeKeys = activeBagKeys();
@@ -1781,95 +1445,6 @@
       }
 
 
-      async function refreshBgtView(){
-        const activeKeys = activeBgtKeys();
-        const reqId = ++bgtFeatureRequestId;
-        closeBagPopup();
-
-        if (!activeKeys.length){
-          clearAllBgtLayers();
-          bgtSummarySectionHtml = '';
-          updateBgtLegend([], {}, false);
-          updateDataSummaryCard();
-          return;
-        }
-
-        const areaFeature = getCurrentBgtAreaFeature();
-        const level = currentBgtAreaLevel();
-
-        if (!areaFeature){
-          clearAllBgtLayers();
-          updateBgtLegend([], {}, false);
-          renderBgtSummaryMessage(tr('bagSummaryNoSelection'));
-          return;
-        }
-
-        const showMap = level === 'wijk' || level === 'buurt';
-        renderBgtLayerSummarySkeleton(level, activeKeys, showMap);
-
-        const rows = [];
-        const countsByKey = {};
-        const partialKeys = [];
-        const failedKeys = [];
-
-        for (const key of ALL_BGT_KEYS){
-          const isActive = activeKeys.includes(key);
-          if (!isActive){
-            setBgtKeyData(key, { type:'FeatureCollection', features: [] });
-            setBgtKeyVisibility(key, false);
-            continue;
-          }
-
-          const cacheKey = bgtCacheKey(key, level, areaFeature.properties?._statcode || '');
-          let fc = bgtFeatureCache.get(cacheKey);
-          const label = collectionLabel(BGT_COLLECTIONS[key]);
-
-          if (!fc){
-            if (showMap){
-              setBgtKeyData(key, { type:'FeatureCollection', features: [] });
-              setBgtKeyVisibility(key, false);
-            }
-
-            const attemptResult = await loadWithAutoRetry({
-              loadFn: () => loadBgtFeaturesForArea(key, areaFeature, level),
-              onRetry: ({ attempt, totalAttempts, delayMs, error }) => {
-                console.warn(`BGT load failed for ${key}; retrying`, error);
-                if (reqId !== bgtFeatureRequestId) return;
-                renderBgtLayerSummarySkeleton(level, activeKeys, showMap, retryAttemptMessage(label, attempt, totalAttempts, delayMs));
-              }
-            });
-
-            if (reqId !== bgtFeatureRequestId) return;
-
-            if (attemptResult.ok){
-              fc = attemptResult.data;
-              bgtFeatureCache.set(cacheKey, fc);
-            } else {
-              console.warn(`BGT load failed for ${key}`, attemptResult.error);
-              failedKeys.push(label);
-              rows.push({ label, error: true });
-              countsByKey[key] = 0;
-              setBgtKeyData(key, { type:'FeatureCollection', features: [] });
-              setBgtKeyVisibility(key, false);
-              continue;
-            }
-          }
-
-          if (reqId !== bgtFeatureRequestId) return;
-
-          setBgtKeyData(key, fc);
-          const count = (fc.features || []).length;
-          countsByKey[key] = count;
-          setBgtKeyVisibility(key, showMap && count > 0);
-          rows.push({ label, count });
-          if (fc._truncated) partialKeys.push(label);
-        }
-
-        if (reqId !== bgtFeatureRequestId) return;
-        updateBgtLegend(activeKeys, countsByKey, showMap);
-        renderBgtLayerSummary(rows, areaFeature, level, partialKeys, showMap, failedKeys.length ? retryFailedMessage(failedKeys) : '');
-      }
-
       function boundaryLayerVisible(kind){
         if (kind === 'gemeente') return state.showGemeente !== false;
         if (kind === 'wijk') return state.showWijk !== false;
@@ -1973,12 +1548,39 @@
         if (legendBuurtRowEl) legendBuurtRowEl.style.display = showBuurt ? 'flex' : 'none';
         if (legendBoundarySectionEl) legendBoundarySectionEl.style.display = (showNational || showProvince || showMunicipality || showWijk || showBuurt) ? 'block' : 'none';
         const bagVisible = !!legendBagRowEl && legendBagRowEl.style.display !== 'none';
-        const bgtVisible = !!legendBgtRowEl && legendBgtRowEl.style.display !== 'none';
-        if (legendDataSectionEl) legendDataSectionEl.style.display = (bagVisible || bgtVisible) ? 'block' : 'none';
-        if (legendEl) legendEl.style.display = (showNational || showProvince || showMunicipality || showWijk || showBuurt || bagVisible || bgtVisible) ? 'block' : 'none';
+        if (legendDataSectionEl) legendDataSectionEl.style.display = bagVisible ? 'block' : 'none';
+        if (legendEl) legendEl.style.display = (showNational || showProvince || showMunicipality || showWijk || showBuurt || bagVisible) ? 'block' : 'none';
       }
 
-      function updateInfoBox(){ const lines = []; if (state.provinceStatcode){ const pf = provinceByStatcode.get(state.provinceStatcode); if (pf) lines.push(`${tr("infoProvince")}: ${prettyName(pf.properties)} (${state.provinceStatcode})`); } if (state.gemeenteStatcode){ const gf = gemeenteByStatcode.get(state.gemeenteStatcode); if (gf) lines.push(`${tr("infoMunicipality")}: ${prettyName(gf.properties)} (${state.gemeenteStatcode})`); } if (state.wijkStatcode){ const wf = allWijken.find(f => f.properties?._statcode === state.wijkStatcode); if (wf) lines.push(`${tr("infoWijk")}: ${prettyName(wf.properties)} (${state.wijkStatcode})`); } if (state.buurtStatcode){ const bf = allBuurten.find(f => f.properties?._statcode === state.buurtStatcode); if (bf) lines.push(`${tr("infoBuurt")}: ${prettyName(bf.properties)} (${state.buurtStatcode})`); } selInfoEl.innerHTML = lines.join("<br>"); }
+      function updateInfoBox(){
+      const lines = [];
+
+      if (state.provinceStatcode){
+      const pf = provinceByStatcode.get(state.provinceStatcode);
+      if (pf) lines.push(`${tr("infoProvince")}: ${prettyName(pf.properties)} (${state.provinceStatcode})`);
+      }
+
+      if (state.gemeenteStatcode){
+      const gf = gemeenteByStatcode.get(state.gemeenteStatcode);
+      if (gf) lines.push(`${tr("infoMunicipality")}: ${prettyName(gf.properties)} (${state.gemeenteStatcode})`);
+      }
+
+      if (state.wijkStatcode){
+      const wf =
+      visibleWijken.find(f => f.properties?._statcode === state.wijkStatcode) ||
+      allWijken.find(f => f.properties?._statcode === state.wijkStatcode);
+      if (wf) lines.push(`${tr("infoWijk")}: ${prettyName(wf.properties)} (${state.wijkStatcode})`);
+      }
+
+      if (state.buurtStatcode){
+     const bf =
+      visibleBuurten.find(f => f.properties?._statcode === state.buurtStatcode) ||
+      allBuurten.find(f => f.properties?._statcode === state.buurtStatcode);
+      if (bf) lines.push(`${tr("infoBuurt")}: ${prettyName(bf.properties)} (${state.buurtStatcode})`);
+      }
+
+  selInfoEl.innerHTML = lines.join("<br>");
+}
       function resetProvinceSelect(message=tr("loadingProvinces")){ selProvincieEl.innerHTML = `<option value="">${message}</option>`; selProvincieEl.disabled = true; }
       function resetMunicipalitySelect(message=tr("selectProvinceFirst")){ selGemeenteEl.innerHTML = `<option value="">${message}</option>`; selGemeenteEl.disabled = true; }
       function resetWijkSelect(message=tr("selectMunicipalityFirst")){ selWijkEl.innerHTML = `<option value="">${message}</option>`; selWijkEl.disabled = true; }
@@ -2007,11 +1609,76 @@
         if (map.getLayer("cbs-buurt-selected")) map.setFilter("cbs-buurt-selected", state.buurtStatcode ? ["==", ["get", "_statcode"], state.buurtStatcode] : emptyFilter);
         applyBoundaryLayerVisibility();
         refreshBagView().catch(err => console.warn("BAG refresh failed", err));
-        refreshBgtView().catch(err => console.warn("BGT refresh failed", err));
       }
       function fitToFeature(feature){ const b = geojsonBounds(feature); if (b) map.fitBounds(b, { padding: 70, duration: 800 }); }
       function populateProvinces(){ const opts = allProvinces.map(f => ({ id: f.properties._statcode, name: f.properties._statnaam })).sort((a,b) => a.name.localeCompare(b.name, "nl")); selProvincieEl.innerHTML = `<option value="">${tr("selectProvince")}</option>`; for (const o of opts){ const opt = document.createElement("option"); opt.value = o.id; opt.textContent = `${o.name} (${o.id})`; selProvincieEl.appendChild(opt); } selProvincieEl.disabled = false; }
-      function populateMunicipalities(){ if (!state.provinceStatcode){ resetMunicipalitySelect(); return; } const opts = allGemeenten.filter(f => f.properties._pvstatcode === state.provinceStatcode).map(f => ({ id: f.properties._statcode, name: f.properties._statnaam })).sort((a,b) => a.name.localeCompare(b.name, "nl")); if (!opts.length){ resetMunicipalitySelect(tr("noMunicipalitiesFound")); return; } selGemeenteEl.innerHTML = `<option value="">${tr("allMunicipalities")}</option>`; for (const o of opts){ const opt = document.createElement("option"); opt.value = o.id; opt.textContent = `${o.name} (${o.id})`; selGemeenteEl.appendChild(opt); } selGemeenteEl.disabled = false; }
+      async function populateMunicipalities(){
+        if (!state.provinceStatcode){
+          allGemeenten = [];
+          gemeenteByStatcode.clear();
+          gmToProvinceStatcode.clear();
+          if (map.getSource("cbs-gemeente")) {
+            map.getSource("cbs-gemeente").setData({ type:"FeatureCollection", features: [] });
+          }
+          resetMunicipalitySelect();
+          return;
+        }
+
+        selGemeenteEl.innerHTML = `<option value="">${tr("labelGemeente")}…</option>`;
+        selGemeenteEl.disabled = true;
+
+        try{
+          const fc = await fetchBackendJson(
+            `/api/areas/municipalities?province_statcode=${encodeURIComponent(state.provinceStatcode)}`,
+            30000
+          );
+
+          allGemeenten = fc?.features || [];
+          gemeenteByStatcode.clear();
+          gmToProvinceStatcode.clear();
+
+          for (const f of allGemeenten){
+            gemeenteByStatcode.set(f.properties._statcode, f);
+            if (f.properties?._statcode && f.properties?._pvstatcode){
+              gmToProvinceStatcode.set(f.properties._statcode, f.properties._pvstatcode);
+            }
+          }
+
+          if (map.getSource("cbs-gemeente")) {
+            map.getSource("cbs-gemeente").setData({
+              type:"FeatureCollection",
+              features: allGemeenten
+            });
+          }
+
+          const rows = allGemeenten
+            .map(f => ({ id: f.properties._statcode, name: f.properties._statnaam }))
+            .sort((a,b) => a.name.localeCompare(b.name, "nl"));
+
+          if (!rows.length){
+            resetMunicipalitySelect(tr("noMunicipalitiesFound"));
+            return;
+          }
+
+          selGemeenteEl.innerHTML = `<option value="">${tr("allMunicipalities")}</option>`;
+          for (const row of rows){
+            const opt = document.createElement("option");
+            opt.value = row.id;
+            opt.textContent = `${row.name} (${row.id})`;
+            selGemeenteEl.appendChild(opt);
+          }
+          selGemeenteEl.disabled = false;
+        }catch(err){
+          console.error("Failed to load municipalities from backend", err);
+          allGemeenten = [];
+          gemeenteByStatcode.clear();
+          gmToProvinceStatcode.clear();
+          if (map.getSource("cbs-gemeente")) {
+            map.getSource("cbs-gemeente").setData({ type:"FeatureCollection", features: [] });
+          }
+          resetMunicipalitySelect(tr("loadFailedMunicipalities"));
+        }
+      }
       async function populateWijken(){
   if (!state.gmCode){
     visibleWijken = [];
@@ -2087,7 +1754,47 @@ async function populateBuurten(){
 function clearBelowProvince(){ state.gemeenteStatcode = ""; state.gmCode = ""; state.wijkStatcode = ""; state.buurtStatcode = ""; selGemeenteEl.value = ""; selWijkEl.value = ""; selBuurtEl.value = ""; resetWijkSelect(); resetBuurtSelect(); }
       function clearBelowMunicipality(){ state.wijkStatcode = ""; state.buurtStatcode = ""; selWijkEl.value = ""; selBuurtEl.value = ""; resetBuurtSelect(); }
       function clearBelowWijk(){ state.buurtStatcode = ""; selBuurtEl.value = ""; }
-      function selectProvince(statcode, doZoom=true){ state.provinceStatcode = statcode || ""; selProvincieEl.value = state.provinceStatcode; clearBelowProvince(); if (state.provinceStatcode) populateMunicipalities(); else resetMunicipalitySelect(); applyLayerFilters(); updateInfoBox(); if (doZoom && state.provinceStatcode){ const f = provinceByStatcode.get(state.provinceStatcode); if (f) fitToFeature(f); } }
+      function selectProvince(statcode, doZoom=true){
+        state.provinceStatcode = statcode || "";
+        selProvincieEl.value = state.provinceStatcode;
+
+        clearBelowProvince();
+
+        allGemeenten = [];
+        gemeenteByStatcode.clear();
+        gmToProvinceStatcode.clear();
+        visibleWijken = [];
+        visibleBuurten = [];
+
+        if (map.getSource("cbs-gemeente")) {
+          map.getSource("cbs-gemeente").setData({ type:"FeatureCollection", features: [] });
+        }
+        if (map.getSource("cbs-wijk")) {
+          map.getSource("cbs-wijk").setData({ type:"FeatureCollection", features: [] });
+        }
+        if (map.getSource("cbs-buurt")) {
+          map.getSource("cbs-buurt").setData({ type:"FeatureCollection", features: [] });
+        }
+
+        applyLayerFilters();
+        updateInfoBox();
+
+        if (state.provinceStatcode){
+          populateMunicipalities()
+            .then(() => {
+              applyLayerFilters();
+              updateInfoBox();
+            })
+            .catch(err => console.warn("populateMunicipalities failed", err));
+        } else {
+          resetMunicipalitySelect();
+        }
+
+        if (doZoom && state.provinceStatcode){
+          const f = provinceByStatcode.get(state.provinceStatcode);
+          if (f) fitToFeature(f);
+        }
+      }
       function selectMunicipality(statcode, doZoom=true){ if (!statcode){ state.gemeenteStatcode = ""; state.gmCode = ""; clearBelowMunicipality(); selGemeenteEl.value = ""; visibleWijken = []; visibleBuurten = []; if (map.getSource("cbs-wijk")) map.getSource("cbs-wijk").setData({ type:"FeatureCollection", features: [] }); if (map.getSource("cbs-buurt")) map.getSource("cbs-buurt").setData({ type:"FeatureCollection", features: [] }); resetWijkSelect(); resetBuurtSelect(); applyLayerFilters(); updateInfoBox(); return; } const f = gemeenteByStatcode.get(statcode); if (!f) return; const pv = gmToProvinceStatcode.get(statcode) || ""; if (pv && state.provinceStatcode !== pv){ state.provinceStatcode = pv; selProvincieEl.value = pv; populateMunicipalities(); } state.gemeenteStatcode = statcode; state.gmCode = f.properties._gmcode; clearBelowMunicipality(); selGemeenteEl.value = statcode; visibleBuurten = []; if (map.getSource("cbs-buurt")) map.getSource("cbs-buurt").setData({ type:"FeatureCollection", features: [] }); applyLayerFilters(); updateInfoBox(); populateWijken().then(() => { applyLayerFilters(); updateInfoBox(); }).catch(err => console.warn("populateWijken failed", err)); if (doZoom) fitToFeature(f); }
       function selectWijk(statcode, doZoom=true){ if (!statcode){ state.wijkStatcode = ""; clearBelowWijk(); selWijkEl.value = ""; visibleBuurten = []; if (map.getSource("cbs-buurt")) map.getSource("cbs-buurt").setData({ type:"FeatureCollection", features: [] }); resetBuurtSelect(); applyLayerFilters(); updateInfoBox(); return; } state.wijkStatcode = statcode; clearBelowWijk(); selWijkEl.value = statcode; applyLayerFilters(); updateInfoBox(); populateBuurten().then(() => { applyLayerFilters(); updateInfoBox(); }).catch(err => console.warn("populateBuurten failed", err)); if (doZoom){ const f = visibleWijken.find(x => x.properties._statcode === statcode) || allWijken.find(x => x.properties._statcode === statcode); if (f) fitToFeature(f); } }
       function selectBuurt(statcode, doZoom=true){ state.buurtStatcode = statcode || ""; selBuurtEl.value = statcode || ""; applyLayerFilters(); updateInfoBox(); if (doZoom && statcode){ const f = visibleBuurten.find(x => x.properties._statcode === statcode) || allBuurten.find(x => x.properties._statcode === statcode); if (f) fitToFeature(f); } }
@@ -2101,28 +1808,28 @@ function clearBelowProvince(){ state.gemeenteStatcode = ""; state.gmCode = ""; s
         resetWijkSelect(tr("loadingWijken"));
         resetBuurtSelect(tr("loadingBuurten"));
 
-        const areaData = await fetchBackendJson("/api/areas/all");
-
-        const p = areaData.provincies;
-        const g = areaData.gemeenten;
-        const w = areaData.wijken;
-        const b = areaData.buurten;
+        const p = await fetchBackendJson("/api/areas/provinces", 30000);
 
         allProvinces = p.features || [];
-        allGemeenten = g.features || [];
-        allWijken = w.features || [];
-        allBuurten = b.features || [];
+        allGemeenten = [];
+        allWijken = [];
+        allBuurten = [];
         visibleWijken = [];
         visibleBuurten = [];
+
         provinceByStatcode.clear();
         gemeenteByStatcode.clear();
-        for (const f of allProvinces) provinceByStatcode.set(f.properties._statcode, f);
-        for (const f of allGemeenten) gemeenteByStatcode.set(f.properties._statcode, f);
-        assignProvinceLinks();
+        gmToProvinceStatcode.clear();
+
+        for (const f of allProvinces){
+          provinceByStatcode.set(f.properties._statcode, f);
+        }
+
         map.getSource("cbs-provincie").setData(p);
-        map.getSource("cbs-gemeente").setData(g);
+        map.getSource("cbs-gemeente").setData({ type:"FeatureCollection", features: [] });
         map.getSource("cbs-wijk").setData({ type:"FeatureCollection", features: [] });
         map.getSource("cbs-buurt").setData({ type:"FeatureCollection", features: [] });
+
         populateProvinces();
         resetMunicipalitySelect();
         resetWijkSelect();
@@ -2132,7 +1839,6 @@ function clearBelowProvince(){ state.gemeenteStatcode = ""; state.gmCode = ""; s
       }
       function featureUnderPointer(point, layerId){ if (!map.getLayer(layerId)) return null; const feats = map.queryRenderedFeatures(point, { layers:[layerId] }); return feats && feats.length ? feats[0] : null; }
       map.on("load", async ()=>{ ensureWhiteBackground(); const beforeId = firstNonBackgroundLayerId(); try{ await ensureBrtLayer(beforeId); await addOutsideNlMask(beforeId); await addWorldCountryOutlines(beforeId); }catch(err){ console.warn(err); } setBasemap("brt"); hideBrkMunicipalityLayers(); addAdminSourcesAndLayers(); ensureBagFeatureLayers(); updateAllBoundaryToggleButtons(); applyBoundaryLayerVisibility(); enforceBoundaryStackOrder(); try{ await loadAdminData(); enforceBoundaryStackOrder(); }catch(err){ console.error(err); selProvincieEl.innerHTML = `<option value="">${tr("loadFailedProvinces")}</option>`; selGemeenteEl.innerHTML = `<option value="">${tr("loadFailedMunicipalities")}</option>`; resetWijkSelect(tr("loadFailedShort")); resetBuurtSelect(tr("loadFailedShort")); }
-        ensureBgtFeatureLayers();
         resetToNationalView = () => { state.provinceStatcode = ""; state.gemeenteStatcode = ""; state.gmCode = ""; state.wijkStatcode = ""; state.buurtStatcode = ""; selProvincieEl.value = ""; selGemeenteEl.value = ""; selWijkEl.value = ""; selBuurtEl.value = ""; resetMunicipalitySelect(); resetWijkSelect(); resetBuurtSelect(); applyLayerFilters(); updateInfoBox(); closeBagPopup(); };
         selProvincieEl.addEventListener("change", ()=> selectProvince(selProvincieEl.value, true));
         selGemeenteEl.addEventListener("change", ()=> selectMunicipality(selGemeenteEl.value, true));
@@ -2147,17 +1853,9 @@ function clearBelowProvince(){ state.gemeenteStatcode = ""; state.gmCode = ""; s
             refreshBagView().catch(err => console.warn("BAG refresh failed", err));
           });
         });
-        Object.values(bgtToggleEls).forEach(el => {
-          el?.addEventListener("change", () => {
-            refreshBgtView().catch(err => console.warn("BGT refresh failed", err));
-          });
-        });
         map.on("click", e => { const dataFeature = queryDataFeature(e.point); if (dataFeature){ openBagPopup(dataFeature, e.lngLat); return; } const buurt = featureUnderPointer(e.point, "cbs-buurt-hit"); if (buurt){ closeBagPopup(); return selectBuurtByFeature(buurt, true); } const wijk = featureUnderPointer(e.point, "cbs-wijk-hit"); if (wijk){ closeBagPopup(); return selectWijkByFeature(wijk, true); } const gemeente = featureUnderPointer(e.point, "cbs-gemeente-hit"); if (gemeente){ closeBagPopup(); return selectMunicipalityByFeature(gemeente, true); } const provincie = featureUnderPointer(e.point, "cbs-provincie-hit"); if (provincie){ closeBagPopup(); return selectProvinceByFeature(provincie, true); } closeBagPopup(); });
         syncBagAccordion(false);
-        syncBgtAccordion(false);
         bagAccordionToggleEl?.addEventListener("click", toggleBagAccordion);
-        bgtAccordionToggleEl?.addEventListener("click", toggleBgtAccordion);
-        window.addEventListener("resize", ()=> { syncBagAccordion(false); syncBgtAccordion(false); });
         map.on("mousemove", e => { const hit = queryDataFeature(e.point) || featureUnderPointer(e.point, "cbs-buurt-hit") || featureUnderPointer(e.point, "cbs-wijk-hit") || featureUnderPointer(e.point, "cbs-gemeente-hit") || featureUnderPointer(e.point, "cbs-provincie-hit"); map.getCanvas().style.cursor = hit ? "pointer" : ""; });
       });
       map.on("error", e => console.error("MapLibre error:", e?.error || e));
