@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 import sys
 import time
 from contextlib import asynccontextmanager
@@ -13,7 +12,6 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from shapely.geometry import shape
 
 # Allow `from config import ...` whether main is loaded as `main` (tests insert
 # Backend/ into sys.path) or as `Backend.main` (uvicorn from repo root).
@@ -23,7 +21,29 @@ if _BACKEND_DIR not in sys.path:
 
 from config import settings
 from logging_setup import get_logger
-from cache import cache_get, cache_set
+from cache import (
+    ADMIN_CACHE_VERSION,
+    cache_get,
+    cache_set,
+    load_admin_cache_file,
+    load_municipality_to_province_map_file,
+    normalize_admin_cache_payload,
+    save_admin_cache_file,
+    save_municipality_to_province_map_file,
+    wrap_admin_cache_payload,
+)
+from domain import (
+    bbox_from_feature,
+    extract_municipality_code,
+    feature_intersects_area,
+    find_best_province_statcode_for_municipality,
+    municipality_code_from_statcode,
+    normalize_gmcode,
+    preprocess_features,
+    pretty_name,
+    pretty_statcode,
+    wijk_body,
+)
 from pdok import (
     BAG_COLLECTION_URLS,
     BAG_PAND_URL,
@@ -43,8 +63,6 @@ YEARCODE = settings.yearcode
 
 SUMMARY_MAX_AGE_SECONDS = settings.summary_max_age_seconds
 SUMMARY_DATASET_KEY = "bag_pand"
-
-ADMIN_CACHE_VERSION = 1
 
 RUNTIME_DATA_DIR = settings.data_dir
 FRONTEND_DIR = settings.frontend_dir
@@ -80,7 +98,7 @@ def get_cached_admin_data() -> Optional[Dict[str, Any]]:
 def cached_municipality_to_province_map() -> Dict[str, str]:
     mapping: Dict[str, str] = {}
 
-    file_mapping = load_municipality_to_province_map_file()
+    file_mapping = load_municipality_to_province_map_file(ADMIN_MUNICIPALITY_PROVINCE_MAP_FILE)
     if file_mapping:
         return file_mapping
 
@@ -382,279 +400,13 @@ def empty_feature_collection() -> Dict[str, Any]:
     return {"type": "FeatureCollection", "features": []}
 
 
-def wrap_admin_cache_payload(
-    fc: Dict[str, Any],
-    *,
-    level: str,
-    parent_gmcode: Optional[str] = None,
-    parent_statcode: Optional[str] = None,
-) -> Dict[str, Any]:
-    payload: Dict[str, Any] = {
-        "cache_version": ADMIN_CACHE_VERSION,
-        "level": level,
-        "yearcode": YEARCODE,
-        "source": "cbs_gebiedsindelingen",
-        "saved_at": time.time(),
-        "type": "FeatureCollection",
-        "features": list(fc.get("features", []) or []),
-    }
-
-    if parent_gmcode:
-        payload["parent_gmcode"] = str(parent_gmcode).strip()
-    if parent_statcode:
-        payload["parent_statcode"] = str(parent_statcode).strip().upper()
-
-    return payload
-
-
-def normalize_admin_cache_payload(
-    data: Any,
-    *,
-    expected_level: str,
-    expected_parent_gmcode: Optional[str] = None,
-) -> Optional[Dict[str, Any]]:
-    if not isinstance(data, dict):
-        return None
-
-    if int(data.get("cache_version") or 0) != ADMIN_CACHE_VERSION:
-        return None
-
-    if str(data.get("level") or "").strip().lower() != expected_level:
-        return None
-
-    if int(data.get("yearcode") or 0) != YEARCODE:
-        return None
-
-    if expected_parent_gmcode is not None:
-        stored_parent = str(data.get("parent_gmcode") or "").strip()
-        if stored_parent != str(expected_parent_gmcode).strip():
-            return None
-
-    features = data.get("features", []) or []
-    if not isinstance(features, list):
-        return None
-
-    return {"type": "FeatureCollection", "features": features}
-
-
-def load_admin_cache_file(
-    path: Path,
-    *,
-    expected_level: str,
-    expected_parent_gmcode: Optional[str] = None,
-) -> Optional[Dict[str, Any]]:
-    if not path.exists():
-        return None
-
-    try:
-        with path.open("r", encoding="utf-8") as f:
-            data = json.load(f)
-    except Exception as e:
-        logger.error("failed to read %s: %s", path, e)
-        return None
-
-    fc = normalize_admin_cache_payload(
-        data,
-        expected_level=expected_level,
-        expected_parent_gmcode=expected_parent_gmcode,
-    )
-    if fc is None:
-        return None
-
-    return fc
-
-
-def save_admin_cache_file(
-    path: Path,
-    fc: Dict[str, Any],
-    *,
-    level: str,
-    parent_gmcode: Optional[str] = None,
-    parent_statcode: Optional[str] = None,
-) -> Dict[str, Any]:
-    path.parent.mkdir(parents=True, exist_ok=True)
-
-    payload = wrap_admin_cache_payload(
-        fc,
-        level=level,
-        parent_gmcode=parent_gmcode,
-        parent_statcode=parent_statcode,
-    )
-
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
-
-    return fc
-
-
-def pretty_name(props: Dict[str, Any]) -> str:
-    return str(props.get("statnaam") or props.get("naam") or props.get("name") or "")
-
-
-def pretty_statcode(props: Dict[str, Any]) -> str:
-    return str(props.get("statcode") or props.get("code") or "")
-
-
-def normalize_gmcode(value: Any) -> str:
-    s = str(value or "").strip().upper()
-    if not s:
-        return ""
-    m = re.search(r"(\d{4})", s)
-    return m.group(1) if m else ""
-
-
-def municipality_code_from_statcode(statcode: str) -> str:
-    statcode = (statcode or "").strip().upper()
-    if len(statcode) >= 6 and statcode[:2] in {"GM", "WK", "BU"}:
-        return statcode[2:6]
-    return ""
-
-
-def extract_municipality_code(props: Dict[str, Any], statcode: str, kind: str) -> str:
-    preferred_keys = [
-        "gm_code",
-        "gmcode",
-        "gemeentecode",
-        "gemeentecode",
-        "gemeentecodegm",
-        "gem_code",
-        "gemcode",
-        "municipality_code",
-        "municipalitycode",
-        "gemeente_id",
-        "gm_id",
-    ]
-    for key in preferred_keys:
-        if key in props:
-            code = normalize_gmcode(props.get(key))
-            if code:
-                return code
-
-    for key, value in props.items():
-        k = str(key).lower()
-        if "gemeente" in k or k.startswith("gm"):
-            code = normalize_gmcode(value)
-            if code:
-                return code
-
-    # Final fallback
-    return municipality_code_from_statcode(statcode)
-
-
-def wijk_body(statcode: str) -> str:
-    statcode = (statcode or "").strip().upper()
-    if statcode.startswith("WK"):
-        return statcode[2:]
-    return ""
-
-
-def preprocess_features(fc: Dict[str, Any], kind: str) -> Dict[str, Any]:
-    out = {"type": "FeatureCollection", "features": []}
-    for feature in fc.get("features", []) or []:
-        props = dict(feature.get("properties") or {})
-        statcode = pretty_statcode(props)
-
-        props["_kind"] = kind
-        props["_statcode"] = statcode
-        props["_statnaam"] = pretty_name(props)
-        props["_gmcode"] = extract_municipality_code(props, statcode, kind)
-        props["_wijkbody"] = wijk_body(statcode)
-
-        f2 = dict(feature)
-        f2["properties"] = props
-        out["features"].append(f2)
-    return out
-
-
-def load_municipality_to_province_map_file() -> Dict[str, str]:
-    if not ADMIN_MUNICIPALITY_PROVINCE_MAP_FILE.exists():
-        return {}
-
-    try:
-        with ADMIN_MUNICIPALITY_PROVINCE_MAP_FILE.open("r", encoding="utf-8") as f:
-            raw = json.load(f)
-    except Exception as e:
-        logger.error("failed to read municipality_to_province map: %s", e)
-        return {}
-
-    if not isinstance(raw, dict):
-        return {}
-
-    mapping: Dict[str, str] = {}
-    for gm_statcode, pv_statcode in raw.items():
-        gm = str(gm_statcode).strip().upper()
-        pv = str(pv_statcode).strip().upper()
-        if gm.startswith("GM") and pv.startswith("PV"):
-            mapping[gm] = pv
-
-    return mapping
-
-
-def save_municipality_to_province_map_file(mapping: Dict[str, str]) -> Dict[str, str]:
-    ADMIN_MUNICIPALITY_PROVINCE_MAP_FILE.parent.mkdir(parents=True, exist_ok=True)
-
-    cleaned: Dict[str, str] = {}
-    for gm_statcode, pv_statcode in mapping.items():
-        gm = str(gm_statcode).strip().upper()
-        pv = str(pv_statcode).strip().upper()
-        if gm.startswith("GM") and pv.startswith("PV"):
-            cleaned[gm] = pv
-
-    with ADMIN_MUNICIPALITY_PROVINCE_MAP_FILE.open("w", encoding="utf-8") as f:
-        json.dump(dict(sorted(cleaned.items())), f, ensure_ascii=False, indent=2)
-
-    return cleaned
-
-
-def find_best_province_statcode_for_municipality(
-    municipality_feature: Dict[str, Any],
-    province_features: List[Dict[str, Any]],
-) -> str:
-    try:
-        municipality_geom = shape(municipality_feature["geometry"])
-    except Exception:
-        return ""
-
-    best_pv = ""
-    best_overlap_area = 0.0
-
-    for province_feature in province_features:
-        try:
-            province_geom = shape(province_feature["geometry"])
-            overlap_area = municipality_geom.intersection(province_geom).area
-        except Exception:
-            continue
-
-        if overlap_area > best_overlap_area:
-            best_overlap_area = overlap_area
-            best_pv = str(
-                province_feature.get("properties", {}).get("_statcode", "")
-            ).strip().upper()
-
-    if best_pv:
-        return best_pv
-
-    try:
-        probe = municipality_geom.representative_point()
-        for province_feature in province_features:
-            province_geom = shape(province_feature["geometry"])
-            if province_geom.contains(probe) or province_geom.intersects(probe):
-                return str(
-                    province_feature.get("properties", {}).get("_statcode", "")
-                ).strip().upper()
-    except Exception:
-        return ""
-
-    return ""
-
-
 async def load_municipality_to_province_map() -> Dict[str, str]:
     cache_key = "municipality_to_province_map_v1"
     cached = cache_get(cache_key)
     if isinstance(cached, dict) and cached:
         return cached
 
-    disk_cached = load_municipality_to_province_map_file()
+    disk_cached = load_municipality_to_province_map_file(ADMIN_MUNICIPALITY_PROVINCE_MAP_FILE)
     if disk_cached:
         cache_set(cache_key, disk_cached, 24 * 3600)
         return disk_cached
@@ -678,7 +430,7 @@ async def load_municipality_to_province_map() -> Dict[str, str]:
         if pv_statcode.startswith("PV"):
             mapping[gm_statcode] = pv_statcode
 
-    mapping = save_municipality_to_province_map_file(mapping)
+    mapping = save_municipality_to_province_map_file(ADMIN_MUNICIPALITY_PROVINCE_MAP_FILE, mapping)
     cache_set(cache_key, mapping, 24 * 3600)
     return mapping
 
@@ -976,21 +728,6 @@ async def get_area_feature(level: str, statcode: str) -> Dict[str, Any]:
         status_code=404,
         detail=f"Area not found for level={level}, statcode={statcode}",
     )
-
-
-def feature_intersects_area(feature: Dict[str, Any], area_feature: Dict[str, Any]) -> bool:
-    try:
-        geom_a = shape(feature["geometry"])
-        geom_b = shape(area_feature["geometry"])
-        return geom_a.intersects(geom_b)
-    except Exception:
-        return False
-
-
-def bbox_from_feature(feature: Dict[str, Any]) -> str:
-    geom = shape(feature["geometry"])
-    minx, miny, maxx, maxy = geom.bounds
-    return f"{minx},{miny},{maxx},{maxy}"
 
 
 def feature_matches_area_for_bag_object(
