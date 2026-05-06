@@ -1,10 +1,10 @@
 # Python
-__pycache__/
-*.pyc
-*.pyo
+**/__pycache__/
+**/*.pyc
+**/*.pyo
 .venv/
 venv/
-.pytest_cache/
+**/.pytest_cache/
 
 # Environment
 .env
@@ -27,3 +27,6 @@ node_modules/
 *.zip
 Backend/tests/
 Proposal_documents/
+
+# Runtime cache (delivered separately and bind-mounted at runtime)
+data/

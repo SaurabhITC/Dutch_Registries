@@ -1,0 +1,12 @@
+services:
+  app:
+    build: .
+    image: dutch-registries-dashboard:dev
+    container_name: dutch-registries-dashboard
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data       # bind-mounts the repo's data/ folder as the container's runtime cache
+    environment:
+      GEONOVUM_LOG_LEVEL: INFO
+    restart: unless-stopped

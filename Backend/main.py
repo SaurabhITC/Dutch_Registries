@@ -11,6 +11,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import httpx
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from shapely.geometry import shape
 
 APP_TITLE = "Geonovum Registry Dashboard Backend"
@@ -53,6 +55,8 @@ ADMIN_CACHE_VERSION = 1
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_DATA_DIR = Path(os.environ.get("GEONOVUM_DATA_DIR", REPO_ROOT / "data")).resolve()
+FRONTEND_DIR = Path(os.environ.get("GEONOVUM_FRONTEND_DIR", REPO_ROOT / "Frontend")).resolve()
+CORS_ORIGINS = [o.strip() for o in os.environ.get("GEONOVUM_CORS_ORIGINS", "*").split(",") if o.strip()]
 
 ADMIN_CACHE_DIR = RUNTIME_DATA_DIR / "admin_data"
 ADMIN_PROVINCES_FILE = ADMIN_CACHE_DIR / "provinces.json"
@@ -1313,7 +1317,7 @@ app = FastAPI(title=APP_TITLE, version=APP_VERSION)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -1508,3 +1512,21 @@ async def get_bag_object(
         "level": level,
         "statcode": statcode,
     }
+
+
+app.mount("/Assets", StaticFiles(directory=str(FRONTEND_DIR / "Assets")), name="assets")
+
+
+@app.get("/")
+async def serve_index() -> FileResponse:
+    return FileResponse(FRONTEND_DIR / "index.html")
+
+
+@app.get("/{path:path}")
+async def serve_frontend(path: str) -> FileResponse:
+    if path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="Not found")
+    file_path = FRONTEND_DIR / path
+    if file_path.is_file():
+        return FileResponse(file_path)
+    return FileResponse(FRONTEND_DIR / "index.html")
