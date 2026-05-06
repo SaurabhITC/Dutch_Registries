@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import re
+import sys
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -15,12 +16,23 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from shapely.geometry import shape
 
+# Allow `from config import ...` whether main is loaded as `main` (tests insert
+# Backend/ into sys.path) or as `Backend.main` (uvicorn from repo root).
+_BACKEND_DIR = str(Path(__file__).resolve().parent)
+if _BACKEND_DIR not in sys.path:
+    sys.path.insert(0, _BACKEND_DIR)
+
+from config import settings
+from logging_setup import get_logger
+
+logger = get_logger(__name__)
+
 APP_TITLE = "Geonovum Registry Dashboard Backend"
 APP_VERSION = "0.1.0"
-YEARCODE = 2025
+YEARCODE = settings.yearcode
 
-CBS_BASE = "https://api.pdok.nl/cbs/gebiedsindelingen/ogc/v1"
-BAG_BASE = "https://api.pdok.nl/kadaster/bag/ogc/v2"
+CBS_BASE = settings.pdok_cbs_base
+BAG_BASE = settings.pdok_bag_base
 
 PROVINCIE_URL = (
     f"{CBS_BASE}/collections/provincie_gegeneraliseerd/items"
@@ -48,15 +60,14 @@ BAG_COLLECTION_URLS = {
     "ligplaats": f"{BAG_BASE}/collections/ligplaats/items?f=json&limit=1000",
 }
 
-SUMMARY_MAX_AGE_SECONDS = 24 * 60 * 60
+SUMMARY_MAX_AGE_SECONDS = settings.summary_max_age_seconds
 SUMMARY_DATASET_KEY = "bag_pand"
 
 ADMIN_CACHE_VERSION = 1
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-RUNTIME_DATA_DIR = Path(os.environ.get("GEONOVUM_DATA_DIR", REPO_ROOT / "data")).resolve()
-FRONTEND_DIR = Path(os.environ.get("GEONOVUM_FRONTEND_DIR", REPO_ROOT / "Frontend")).resolve()
-CORS_ORIGINS = [o.strip() for o in os.environ.get("GEONOVUM_CORS_ORIGINS", "*").split(",") if o.strip()]
+RUNTIME_DATA_DIR = settings.data_dir
+FRONTEND_DIR = settings.frontend_dir
+CORS_ORIGINS = settings.cors_origins
 
 ADMIN_CACHE_DIR = RUNTIME_DATA_DIR / "admin_data"
 ADMIN_PROVINCES_FILE = ADMIN_CACHE_DIR / "provinces.json"
@@ -376,7 +387,7 @@ def load_bag_pand_summary_store() -> Dict[str, Any]:
         return _bag_pand_summary_store
 
     except Exception as e:
-        print(f"[summary-store] failed to load summary file: {e}")
+        logger.error("failed to load summary file: %s", e)
         _bag_pand_summary_store = empty_bag_pand_summary_store()
         return _bag_pand_summary_store
 
@@ -477,7 +488,7 @@ def load_admin_cache_file(
         with path.open("r", encoding="utf-8") as f:
             data = json.load(f)
     except Exception as e:
-        print(f"[admin-cache] failed to read {path}: {e}")
+        logger.error("failed to read %s: %s", path, e)
         return None
 
     fc = normalize_admin_cache_payload(
@@ -673,7 +684,7 @@ def load_municipality_to_province_map_file() -> Dict[str, str]:
         with ADMIN_MUNICIPALITY_PROVINCE_MAP_FILE.open("r", encoding="utf-8") as f:
             raw = json.load(f)
     except Exception as e:
-        print(f"[admin-cache] failed to read municipality_to_province map: {e}")
+        logger.error("failed to read municipality_to_province map: %s", e)
         return {}
 
     if not isinstance(raw, dict):
@@ -1171,14 +1182,21 @@ async def build_bag_pand_summary_store(
         last_error: Optional[Exception] = None
         for attempt in range(1, max(1, municipality_retry_attempts) + 1):
             try:
-                print(
-                    f"[bag-pand-summary] municipality={municipality_statcode} attempt={attempt}/{max(1, municipality_retry_attempts)}"
+                logger.info(
+                    "municipality=%s attempt=%d/%d",
+                    municipality_statcode,
+                    attempt,
+                    max(1, municipality_retry_attempts),
                 )
                 return await count_bag_pand_for_area("municipality", municipality_statcode)
             except Exception as exc:  # pragma: no cover - defensive logging path
                 last_error = exc
-                print(
-                    f"[bag-pand-summary] municipality={municipality_statcode} failed on attempt {attempt}/{max(1, municipality_retry_attempts)}: {exc}"
+                logger.warning(
+                    "municipality=%s failed on attempt %d/%d: %s",
+                    municipality_statcode,
+                    attempt,
+                    max(1, municipality_retry_attempts),
+                    exc,
                 )
                 if attempt < max(1, municipality_retry_attempts):
                     await asyncio.sleep(1.5 * attempt)
@@ -1200,13 +1218,20 @@ async def build_bag_pand_summary_store(
 
         if resume and not second_pass and municipality_statcode in (province_entry.get("municipalities", {}) or {}):
             skipped_municipalities.append(municipality_statcode)
-            print(
-                f"[bag-pand-summary] province={pv_statcode} municipality={municipality_statcode} name={municipality_name} skipped_existing=true"
+            logger.info(
+                "province=%s municipality=%s name=%s skipped_existing=true",
+                pv_statcode,
+                municipality_statcode,
+                municipality_name,
             )
             return True
 
-        print(
-            f"[bag-pand-summary] province={pv_statcode} municipality={municipality_statcode} name={municipality_name} second_pass={str(second_pass).lower()} status=start"
+        logger.info(
+            "province=%s municipality=%s name=%s second_pass=%s status=start",
+            pv_statcode,
+            municipality_statcode,
+            municipality_name,
+            str(second_pass).lower(),
         )
 
         try:
@@ -1222,8 +1247,12 @@ async def build_bag_pand_summary_store(
                 failed_municipalities_final.append(failure)
             else:
                 failed_municipalities_first_pass.append(failure)
-            print(
-                f"[bag-pand-summary] province={pv_statcode} municipality={municipality_statcode} name={municipality_name} second_pass={str(second_pass).lower()} status=failed"
+            logger.warning(
+                "province=%s municipality=%s name=%s second_pass=%s status=failed",
+                pv_statcode,
+                municipality_statcode,
+                municipality_name,
+                str(second_pass).lower(),
             )
             return False
 
@@ -1241,8 +1270,12 @@ async def build_bag_pand_summary_store(
         affected_municipalities[municipality_statcode] = int(count)
         affected_provinces[pv_statcode] = int(province_entry["count"])
 
-        print(
-            f"[bag-pand-summary] province={pv_statcode} municipality={municipality_statcode} name={municipality_name} count={count} status=done"
+        logger.info(
+            "province=%s municipality=%s name=%s count=%d status=done",
+            pv_statcode,
+            municipality_statcode,
+            municipality_name,
+            count,
         )
         return True
 
@@ -1313,7 +1346,13 @@ async def ensure_bag_pand_summary_store() -> Dict[str, Any]:
     return get_summary_dataset(store, SUMMARY_DATASET_KEY)
 
 
-app = FastAPI(title=APP_TITLE, version=APP_VERSION)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    load_bag_pand_summary_store()
+    yield
+
+
+app = FastAPI(title=APP_TITLE, version=APP_VERSION, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -1322,10 +1361,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-@app.on_event("startup")
-async def startup_load_bag_pand_summary_store() -> None:
-    load_bag_pand_summary_store()
 
 
 @app.get("/health")
