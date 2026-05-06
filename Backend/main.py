@@ -7,9 +7,8 @@ import sys
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
-import httpx
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -24,41 +23,23 @@ if _BACKEND_DIR not in sys.path:
 
 from config import settings
 from logging_setup import get_logger
+from cache import cache_get, cache_set
+from pdok import (
+    BAG_COLLECTION_URLS,
+    BAG_PAND_URL,
+    BUURT_URL,
+    GEMEENTE_URL,
+    PROVINCIE_URL,
+    WIJK_URL,
+    fetch_all_features,
+    fetch_json,
+)
 
 logger = get_logger(__name__)
 
 APP_TITLE = "Geonovum Registry Dashboard Backend"
 APP_VERSION = "0.1.0"
 YEARCODE = settings.yearcode
-
-CBS_BASE = settings.pdok_cbs_base
-BAG_BASE = settings.pdok_bag_base
-
-PROVINCIE_URL = (
-    f"{CBS_BASE}/collections/provincie_gegeneraliseerd/items"
-    f"?f=json&limit=1000&jaarcode={YEARCODE}"
-)
-GEMEENTE_URL = (
-    f"{CBS_BASE}/collections/gemeente_niet_gegeneraliseerd/items"
-    f"?f=json&limit=1000&jaarcode={YEARCODE}"
-)
-WIJK_URL = (
-    f"{CBS_BASE}/collections/wijk_niet_gegeneraliseerd/items"
-    f"?f=json&limit=1000&jaarcode={YEARCODE}"
-)
-BUURT_URL = (
-    f"{CBS_BASE}/collections/buurt_niet_gegeneraliseerd/items"
-    f"?f=json&limit=1000&jaarcode={YEARCODE}"
-)
-BAG_PAND_URL = f"{BAG_BASE}/collections/pand/items?f=json&limit=1000"
-BAG_COLLECTION_URLS = {
-    "pand": BAG_PAND_URL,
-    "verblijfsobject": f"{BAG_BASE}/collections/verblijfsobject/items?f=json&limit=1000",
-    "adres": f"{BAG_BASE}/collections/adres/items?f=json&limit=1000",
-    "woonplaats": f"{BAG_BASE}/collections/woonplaats/items?f=json&limit=1000",
-    "standplaats": f"{BAG_BASE}/collections/standplaats/items?f=json&limit=1000",
-    "ligplaats": f"{BAG_BASE}/collections/ligplaats/items?f=json&limit=1000",
-}
 
 SUMMARY_MAX_AGE_SECONDS = settings.summary_max_age_seconds
 SUMMARY_DATASET_KEY = "bag_pand"
@@ -88,26 +69,7 @@ for p in [
 ]:
     p.mkdir(parents=True, exist_ok=True)
 
-CacheValue = Tuple[float, Any]
-_cache: Dict[str, CacheValue] = {}
 _bag_pand_summary_store: Optional[Dict[str, Any]] = None
-
-
-def cache_get(key: str) -> Optional[Any]:
-    record = _cache.get(key)
-    if not record:
-        return None
-    expires_at, value = record
-    if time.time() >= expires_at:
-        _cache.pop(key, None)
-        return None
-    return value
-
-
-def cache_set(key: str, value: Any, ttl_seconds: int) -> None:
-    _cache[key] = (time.time() + ttl_seconds, value)
-
-
 
 
 def get_cached_admin_data() -> Optional[Dict[str, Any]]:
@@ -523,78 +485,6 @@ def save_admin_cache_file(
         json.dump(payload, f, ensure_ascii=False, indent=2)
 
     return fc
-
-
-async def fetch_json(
-    url: str,
-    *,
-    ttl_seconds: int = 3600,
-    request_retries: int = 3,
-    retry_delay_seconds: float = 1.5,
-) -> Any:
-    cached = cache_get(url)
-    if cached is not None:
-        return cached
-
-    headers = {
-        "Accept": "application/geo+json,application/json;q=0.9,text/html;q=0.1",
-        "User-Agent": "geonovum-registry-dashboard/0.1.0",
-    }
-
-    last_error: Optional[HTTPException] = None
-
-    for attempt in range(1, max(1, request_retries) + 1):
-        try:
-            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-                response = await client.get(url, headers=headers)
-        except httpx.RequestError as exc:
-            last_error = HTTPException(
-                status_code=502,
-                detail=f"Upstream request error: {exc!s}",
-            )
-        else:
-            if response.status_code == 200:
-                data = response.json()
-                cache_set(url, data, ttl_seconds)
-                return data
-
-            snippet = response.text[:300].replace("\n", " ")
-            last_error = HTTPException(
-                status_code=502,
-                detail=f"Upstream error {response.status_code} for {url}. Body: {snippet}",
-            )
-
-            if response.status_code < 500:
-                raise last_error
-
-        if attempt < max(1, request_retries):
-            await asyncio.sleep(retry_delay_seconds * attempt)
-
-    assert last_error is not None
-    raise last_error
-
-
-async def fetch_all_features(start_url: str, *, ttl_seconds: int = 3600) -> Dict[str, Any]:
-    cache_key = f"all::{start_url}"
-    cached = cache_get(cache_key)
-    if cached is not None:
-        return cached
-
-    all_features: List[Dict[str, Any]] = []
-    next_url: Optional[str] = start_url
-
-    while next_url:
-        fc = await fetch_json(next_url, ttl_seconds=ttl_seconds)
-        all_features.extend(fc.get("features", []) or [])
-        next_url = None
-        for link in fc.get("links", []) or []:
-            if link.get("rel") == "next" and link.get("href"):
-                next_url = link["href"]
-                break
-
-    out = {"type": "FeatureCollection", "features": all_features}
-    cache_set(cache_key, out, ttl_seconds)
-    return out
 
 
 def pretty_name(props: Dict[str, Any]) -> str:
