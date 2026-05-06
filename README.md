@@ -14,6 +14,44 @@ served by the FastAPI backend to avoid repeated heavyweight API calls.
 | Frontend | Vanilla JS, MapLibre GL JS |
 | Geo data | PDOK CBS OGC API, PDOK BAG OGC API v2 |
 
+## Running with Docker
+
+This dashboard is delivered as two artifacts:
+
+- **The Docker image** — application code only, no runtime data
+- **A seed `data/` folder** containing precomputed CBS administrative boundaries and BAG summary counts, delivered separately
+
+### Prerequisites
+
+- Docker installed on the host
+- Outbound HTTPS access from the container to `api.pdok.nl`
+- The seed `data/` folder placed somewhere on the host filesystem
+
+### Quick start with docker compose (recommended)
+
+Make sure the seed `data/` folder sits next to `docker-compose.yml`. Then:
+
+    docker compose up --build
+
+The dashboard becomes available at http://localhost:8000 with all precomputed summaries already loaded.
+
+### Manual `docker run` equivalent
+
+    docker build -t dutch-registries-dashboard:dev .
+    docker run --rm -p 8000:8000 \
+        -v /absolute/path/to/data:/app/data \
+        dutch-registries-dashboard:dev
+
+### Running without seed data (cold start)
+
+If no data folder is mounted, the backend lazily fetches and caches from PDOK on first request. This works but the first user to drill into each area waits 30–60 seconds while data is downloaded. Not recommended for end-user deployments.
+
+### Refreshing summaries (currently manual)
+
+    curl -X POST http://localhost:8000/api/bag/pand/summary/rebuild
+
+A 24-hour automated refresh is planned but not yet implemented.
+
 ## Project structure
 
 ```
