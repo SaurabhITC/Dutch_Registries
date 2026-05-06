@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import time
 from pathlib import Path
@@ -50,8 +51,8 @@ SUMMARY_DATASET_KEY = "bag_pand"
 
 ADMIN_CACHE_VERSION = 1
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-RUNTIME_DATA_DIR = PROJECT_ROOT / "Geonovum_Runtime_Data"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+RUNTIME_DATA_DIR = Path(os.environ.get("GEONOVUM_DATA_DIR", REPO_ROOT / "data")).resolve()
 
 ADMIN_CACHE_DIR = RUNTIME_DATA_DIR / "admin_data"
 ADMIN_PROVINCES_FILE = ADMIN_CACHE_DIR / "provinces.json"
