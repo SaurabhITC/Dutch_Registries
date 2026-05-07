@@ -44,7 +44,7 @@ The dashboard becomes available at http://localhost:8000 with all precomputed su
 
 ### Running without seed data (cold start)
 
-If no data folder is mounted, the backend lazily fetches and caches from PDOK on first request. This works but the first user to drill into each area waits 10–40 seconds while data is downloaded. Not recommended for end-user deployments.
+If no data folder is mounted, the backend lazily fetches and caches from PDOK on first request. This works but the first user to drill into each area waits 10-40 seconds while data is downloaded. Not recommended for end-user deployments.
 
 ### Refreshing summaries (currently manual)
 

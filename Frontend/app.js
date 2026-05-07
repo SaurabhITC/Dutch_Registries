@@ -2000,10 +2000,10 @@
           title = tr('vizLegendTitleBouwjaar');
           rows =
             vizLegendRowHtml(VIZ_PALETTE_BOUWJAAR.preBefore1900, '< 1900') +
-            vizLegendRowHtml(VIZ_PALETTE_BOUWJAAR.band1900_1944, '1900–1944') +
-            vizLegendRowHtml(VIZ_PALETTE_BOUWJAAR.band1945_1969, '1945–1969') +
-            vizLegendRowHtml(VIZ_PALETTE_BOUWJAAR.band1970_1989, '1970–1989') +
-            vizLegendRowHtml(VIZ_PALETTE_BOUWJAAR.band1990_2009, '1990–2009') +
+            vizLegendRowHtml(VIZ_PALETTE_BOUWJAAR.band1900_1944, '1900-1944') +
+            vizLegendRowHtml(VIZ_PALETTE_BOUWJAAR.band1945_1969, '1945-1969') +
+            vizLegendRowHtml(VIZ_PALETTE_BOUWJAAR.band1970_1989, '1970-1989') +
+            vizLegendRowHtml(VIZ_PALETTE_BOUWJAAR.band1990_2009, '1990-2009') +
             vizLegendRowHtml(VIZ_PALETTE_BOUWJAAR.band2010Plus,  '2010+') +
             vizLegendRowHtml(VIZ_PALETTE_BOUWJAAR.unknown,       tr('vizLegendUnknown'));
         } else if (activeMapVisualization === 'gebruiksdoel'){
@@ -2021,10 +2021,10 @@
           title = tr('vizLegendTitleOppervlakte');
           rows =
             vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_lt50,    '< 50 m²') +
-            vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_50_75,   '50–75 m²') +
-            vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_75_100,  '75–100 m²') +
-            vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_100_150, '100–150 m²') +
-            vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_150_250, '150–250 m²') +
+            vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_50_75,   '50-75 m²') +
+            vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_75_100,  '75-100 m²') +
+            vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_100_150, '100-150 m²') +
+            vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_150_250, '150-250 m²') +
             vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_250plus, '250+ m²') +
             vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.unknown,      tr('vizLegendUnknown'));
           if (activeBagKeys().includes('pand')){
