@@ -1,6 +1,6 @@
 // Frontend application logic for the split frontend/backend dashboard.
-// Administrative hierarchy data is loaded from the backend endpoints.
-// External PDOK APIs are still used where needed for basemap and registry data.
+// Administrative hierarchy and BAG data are loaded from the backend endpoints.
+// External PDOK services are used directly only for basemap rendering.
 
     (function boot(){
       (function initLogo(){
@@ -520,7 +520,6 @@
       }
 
       const DEFAULT_VIEW = { center: [5.3, 52.1], zoom: 6.5, bearing: 0, pitch: 0 };
-      const YEARCODE = 2025;
       const BACKEND_BASE_URL = "";
 
       const PDOK_STYLE_URL = "https://api.pdok.nl/kadaster/brk-bestuurlijke-gebieden/ogc/v1/styles/bestuurlijkegebieden_standaardvisualisatie__webmercatorquad?f=json";
@@ -532,7 +531,6 @@
         pand: {
           label: { nl:"Pand", en:"Building" },
           popupTitle: { nl:"BAG pand", en:"BAG building" },
-          url: "https://api.pdok.nl/kadaster/bag/ogc/v2/collections/pand/items?f=json&limit=1000",
           geometry: "polygon",
           fill: "#d9c4a6",
           line: "#8b5e3c",
@@ -541,7 +539,6 @@
         verblijfsobject: {
           label: { nl:"Verblijfsobject", en:"Residential unit" },
           popupTitle: { nl:"BAG verblijfsobject", en:"BAG residential unit" },
-          url: "https://api.pdok.nl/kadaster/bag/ogc/v2/collections/verblijfsobject/items?f=json&limit=1000",
           geometry: "point",
           circle: "#0ea5e9",
           radius: 4.8
@@ -549,7 +546,6 @@
         adres: {
           label: { nl:"Adres", en:"Address" },
           popupTitle: { nl:"BAG adres", en:"BAG address" },
-          url: "https://api.pdok.nl/kadaster/bag/ogc/v2/collections/adres/items?f=json&limit=1000",
           geometry: "point",
           circle: "#f97316",
           radius: 4.2
@@ -557,7 +553,6 @@
         woonplaats: {
           label: { nl:"Woonplaats", en:"Place" },
           popupTitle: { nl:"BAG woonplaats", en:"BAG place" },
-          url: "https://api.pdok.nl/kadaster/bag/ogc/v2/collections/woonplaats/items?f=json&limit=1000",
           geometry: "polygon",
           fill: "#bbf7d0",
           line: "#16a34a",
@@ -566,7 +561,6 @@
         standplaats: {
           label: { nl:"Standplaats", en:"Standplace" },
           popupTitle: { nl:"BAG standplaats", en:"BAG standplace" },
-          url: "https://api.pdok.nl/kadaster/bag/ogc/v2/collections/standplaats/items?f=json&limit=1000",
           geometry: "polygon",
           fill: "#fde68a",
           line: "#d97706",
@@ -575,7 +569,6 @@
         ligplaats: {
           label: { nl:"Ligplaats", en:"Mooring place" },
           popupTitle: { nl:"BAG ligplaats", en:"BAG mooring place" },
-          url: "https://api.pdok.nl/kadaster/bag/ogc/v2/collections/ligplaats/items?f=json&limit=1000",
           geometry: "polygon",
           fill: "#c7d2fe",
           line: "#4f46e5",
@@ -687,11 +680,7 @@
         function scanGeom(geom){ if (!geom) return; if (geom.type === "GeometryCollection"){ for (const g of (geom.geometries || [])) scanGeom(g); return; } scanCoords(geom.coordinates); }
         scanGeom(feature?.geometry); return isFinite(minX) ? [[minX, minY], [maxX, maxY]] : null;
       }
-      function pointInRing(point, ring){ const x = point[0], y = point[1]; let inside = false; for (let i=0, j=ring.length-1; i<ring.length; j=i++){ const xi=ring[i][0], yi=ring[i][1], xj=ring[j][0], yj=ring[j][1]; const intersect=((yi>y)!==(yj>y)) && (x < (xj-xi)*(y-yi)/((yj-yi)||1e-12)+xi); if (intersect) inside=!inside; } return inside; }
-      function pointInPolygon(point, polyCoords){ if (!polyCoords?.length || !pointInRing(point, polyCoords[0])) return false; for (let i=1; i<polyCoords.length; i++){ if (pointInRing(point, polyCoords[i])) return false; } return true; }
-      function pointInGeometry(point, geom){ if (!geom) return false; if (geom.type === "Polygon") return pointInPolygon(point, geom.coordinates); if (geom.type === "MultiPolygon") return (geom.coordinates || []).some(poly => pointInPolygon(point, poly)); if (geom.type === "GeometryCollection") return (geom.geometries || []).some(g => pointInGeometry(point, g)); return false; }
-      function featureProbePoint(feature){ const b = geojsonBounds(feature); return b ? [(b[0][0]+b[1][0])/2, (b[0][1]+b[1][1])/2] : null; }
-     
+
       function firstLayerId(){ const layers = map.getStyle().layers || []; return layers.length ? layers[0].id : null; }
       function firstNonBackgroundLayerId(){ const layers = map.getStyle().layers || []; for (const lyr of layers){ if (lyr.type !== "background") return lyr.id; } return null; }
       function ensureWhiteBackground(){ const layers = map.getStyle().layers || []; const bg = layers.find(l => l.type === "background"); if (bg){ map.setPaintProperty(bg.id, "background-color", "#ffffff"); map.setPaintProperty(bg.id, "background-opacity", 1.0); } else { map.addLayer({ id:"bg-white", type:"background", paint:{"background-color":"#ffffff","background-opacity":1.0} }, firstLayerId() || undefined); } }
@@ -767,177 +756,6 @@
         if (level === 'wijk') return tr('bagSummaryWijk');
         if (level === 'buurt') return tr('bagSummaryBuurt');
         return '';
-      }
-
-      function firstCoordFromGeometry(geom){
-        if (!geom) return null;
-        if (geom.type === 'Point') return geom.coordinates || null;
-        if (geom.type === 'MultiPoint') return geom.coordinates?.[0] || null;
-        if (geom.type === 'LineString') return geom.coordinates?.[0] || null;
-        if (geom.type === 'MultiLineString') return geom.coordinates?.[0]?.[0] || null;
-        if (geom.type === 'Polygon') return geom.coordinates?.[0]?.[0] || null;
-        if (geom.type === 'MultiPolygon') return geom.coordinates?.[0]?.[0]?.[0] || null;
-        if (geom.type === 'GeometryCollection'){
-          for (const g of (geom.geometries || [])){
-            const c = firstCoordFromGeometry(g);
-            if (c) return c;
-          }
-        }
-        return null;
-      }
-
-      function bagFeatureProbePoint(feature){
-        return featureProbePoint(feature) || firstCoordFromGeometry(feature?.geometry);
-      }
-
-      function bboxStringForFeature(feature){
-        const b = geojsonBounds(feature);
-        return b ? `${b[0][0]},${b[0][1]},${b[1][0]},${b[1][1]}` : '';
-      }
-
-      async function fetchFeaturesAllPages(startUrl){
-        const all = [];
-        let next = startUrl;
-        while (next){
-          const r = await fetchWithTimeout(next, 20000);
-          if (!r.ok) throw new Error(`Failed to load ${next}: ${r.status}`);
-          const fc = await r.json();
-          all.push(...(fc?.features || []));
-          next = null;
-          for (const l of (fc.links || [])){
-            if (l.rel === 'next' && l.href){
-              next = l.href;
-              break;
-            }
-          }
-        }
-        return { type:'FeatureCollection', features: all, _truncated: false };
-      }
-
-      function turfFeature(input){
-        if (!input) return null;
-        if (input.type === 'Feature') return input;
-        if (input.type && input.coordinates) return { type:'Feature', properties:{}, geometry: input };
-        return null;
-      }
-
-      function geometryTypeOfFeature(feature){
-        return String(feature?.geometry?.type || '');
-      }
-
-      function safeBooleanPointInPolygon(pointFeature, areaFeature){
-        try{
-          if (typeof turf !== 'undefined' && turf?.booleanPointInPolygon){
-            return !!turf.booleanPointInPolygon(turfFeature(pointFeature), turfFeature(areaFeature));
-          }
-        }catch(_){ }
-        const probe = firstCoordFromGeometry(pointFeature?.geometry || pointFeature);
-        return probe ? pointInGeometry(probe, areaFeature?.geometry) : false;
-      }
-
-      function safeBooleanIntersects(featureA, featureB){
-        try{
-          if (typeof turf !== 'undefined' && turf?.booleanIntersects){
-            return !!turf.booleanIntersects(turfFeature(featureA), turfFeature(featureB));
-          }
-        }catch(_){ }
-        const probe = bagFeatureProbePoint(featureA);
-        return probe ? pointInGeometry(probe, featureB?.geometry) : false;
-      }
-
-      function pointFeatureInsideArea(feature, areaFeature){
-        const geomType = geometryTypeOfFeature(feature);
-        if (geomType === 'Point') return safeBooleanPointInPolygon(feature, areaFeature);
-        if (geomType === 'MultiPoint'){
-          return (feature?.geometry?.coordinates || []).some(coords => safeBooleanPointInPolygon({
-            type:'Feature',
-            properties:{},
-            geometry:{ type:'Point', coordinates: coords }
-          }, areaFeature));
-        }
-        const probe = bagFeatureProbePoint(feature);
-        return probe ? pointInGeometry(probe, areaFeature?.geometry) : false;
-      }
-
-      function featureIntersectsArea(feature, areaFeature){
-        return safeBooleanIntersects(feature, areaFeature);
-      }
-
-      function featureMatchesAreaGeometry(feature, areaFeature, geometryHint=''){
-        if (!areaFeature?.geometry || !feature?.geometry) return false;
-        const geomType = geometryTypeOfFeature(feature);
-        const hint = String(geometryHint || '').toLowerCase();
-        if (hint === 'point' || geomType === 'Point' || geomType === 'MultiPoint'){
-          return pointFeatureInsideArea(feature, areaFeature);
-        }
-        return featureIntersectsArea(feature, areaFeature);
-      }
-
-      function candidateAreasForSummaryLevel(level){
-        if (level === 'province') return allProvinces.slice();
-        if (level === 'municipality'){
-          return state.provinceStatcode
-            ? allGemeenten.filter(f => f.properties._pvstatcode === state.provinceStatcode)
-            : allGemeenten.slice();
-        }
-        if (level === 'wijk'){
-          return visibleWijken.length ? visibleWijken.slice() : allWijken.slice();
-        }
-        if (level === 'buurt'){
-          return visibleBuurten.length ? visibleBuurten.slice() : allBuurten.slice();
-        }
-        return [];
-      }
-
-      function overlapAreaForFeatures(featureA, featureB){
-        const polyTypes = new Set(['Polygon', 'MultiPolygon']);
-        if (!polyTypes.has(geometryTypeOfFeature(featureA)) || !polyTypes.has(geometryTypeOfFeature(featureB))) return 0;
-        try{
-          if (typeof turf !== 'undefined' && turf?.intersect && turf?.featureCollection && turf?.area){
-            const inter = turf.intersect(turf.featureCollection([turfFeature(featureA), turfFeature(featureB)]));
-            return inter ? Number(turf.area(inter)) || 0 : 0;
-          }
-        }catch(_){ }
-        return 0;
-      }
-
-      function dominantOverlapAreaFeature(feature, candidates){
-        let best = null;
-        let bestArea = 0;
-        for (const candidate of (candidates || [])){
-          const area = overlapAreaForFeatures(feature, candidate);
-          if (area > bestArea + 1e-9){
-            bestArea = area;
-            best = candidate;
-          }
-        }
-        if (!best){
-          for (const candidate of (candidates || [])){
-            if (featureIntersectsArea(feature, candidate)) return candidate;
-          }
-        }
-        return best;
-      }
-
-      function bagFeatureMatchesAreaForMap(feature, areaFeature, key){
-        const cfg = BAG_COLLECTIONS[key];
-        return featureMatchesAreaGeometry(feature, areaFeature, cfg?.geometry);
-      }
-
-      function bagFeatureMatchesAreaForSummary(feature, areaFeature, level, key){
-        const cfg = BAG_COLLECTIONS[key];
-        if (!cfg || !areaFeature?.geometry) return false;
-        if (cfg.geometry === 'point') return pointFeatureInsideArea(feature, areaFeature);
-        const candidates = candidateAreasForSummaryLevel(level);
-        if (!candidates.length) return featureIntersectsArea(feature, areaFeature);
-        const dominant = dominantOverlapAreaFeature(feature, candidates);
-        if (!dominant) return featureIntersectsArea(feature, areaFeature);
-        return String(dominant.properties?._statcode || '') === String(areaFeature.properties?._statcode || '');
-      }
-
-      function filterBagFeaturesToArea(fc, areaFeature, key){
-        if (!areaFeature?.geometry) return [];
-        return (fc?.features || []).filter(f => bagFeatureMatchesAreaForMap(f, areaFeature, key));
       }
 
       function activeBagKeys(){
