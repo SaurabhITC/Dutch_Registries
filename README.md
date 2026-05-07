@@ -44,7 +44,7 @@ The dashboard becomes available at http://localhost:8000 with all precomputed su
 
 ### Running without seed data (cold start)
 
-If no data folder is mounted, the backend lazily fetches and caches from PDOK on first request. This works but the first user to drill into each area waits 30–60 seconds while data is downloaded. Not recommended for end-user deployments.
+If no data folder is mounted, the backend lazily fetches and caches from PDOK on first request. This works but the first user to drill into each area waits 10–40 seconds while data is downloaded. Not recommended for end-user deployments.
 
 ### Refreshing summaries (currently manual)
 
@@ -109,14 +109,17 @@ populated by a first run of the admin-cache and summary-rebuild endpoints.
 
 ## Data refresh
 
-To rebuild the BAG *pand* summary store (all provinces, ~7 million records):
+To rebuild the BAG *pand* summary store (all provinces, ~12.6 million records):
 
 ```
 POST http://localhost:8000/api/bag/pand/summary/rebuild
 ```
 
-This is a long-running background job. Progress is logged to stdout. The result
-is written to `data/bag_data/bag_pand_summary_store.json`.
+This is a long-running synchronous request that can take an hour or more.
+Progress is logged to stdout. Keep the terminal/server running until it
+finishes — closing the request before completion may leave the summary store
+in a partial state. The result is written to
+`data/bag_data/bag_pand_summary_store.json`.
 
 ## Tests
 
