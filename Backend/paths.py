@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from config import settings
+from Backend.config import settings
 
 RUNTIME_DATA_DIR = settings.data_dir
 

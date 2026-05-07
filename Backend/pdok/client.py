@@ -6,8 +6,8 @@ from typing import Any, Dict, List, Optional
 import httpx
 from fastapi import HTTPException
 
-from cache import cache_get, cache_set
-from logging_setup import get_logger
+from Backend.cache import cache_get, cache_set
+from Backend.logging_setup import get_logger
 
 logger = get_logger(__name__)
 

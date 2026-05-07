@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from config import settings
+from Backend.config import settings
 
 YEARCODE = settings.yearcode
 CBS_BASE = settings.pdok_cbs_base

@@ -1,16 +1,11 @@
 from __future__ import annotations
 
-import sys
 import unittest
-from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-BACKEND_DIR = Path(__file__).resolve().parents[1]
-if str(BACKEND_DIR) not in sys.path:
-    sys.path.insert(0, str(BACKEND_DIR))
-
-import main
+from Backend import main
+from Backend.paths import ADMIN_BUURTEN_DIR, ADMIN_WIJKEN_DIR
 
 
 class BackendSmokeTests(unittest.TestCase):
@@ -56,7 +51,7 @@ class BackendSmokeTests(unittest.TestCase):
         self.assertEqual(response.json()["count"], 132547)
 
     @unittest.skipUnless(
-        (main.ADMIN_WIJKEN_DIR / "0014.json").exists(),
+        (ADMIN_WIJKEN_DIR / "0014.json").exists(),
         "cached wijk data for GM0014 is not available",
     )
     def test_cached_wijken_for_municipality(self) -> None:
@@ -66,7 +61,7 @@ class BackendSmokeTests(unittest.TestCase):
         self.assertGreater(len(response.json()["features"]), 0)
 
     @unittest.skipUnless(
-        (main.ADMIN_BUURTEN_DIR / "0014.json").exists(),
+        (ADMIN_BUURTEN_DIR / "0014.json").exists(),
         "cached buurt data for GM0014 is not available",
     )
     def test_cached_buurten_for_municipality(self) -> None:

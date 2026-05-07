@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-import sys
 import time
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Query
@@ -13,15 +11,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-# Allow `from config import ...` whether main is loaded as `main` (tests insert
-# Backend/ into sys.path) or as `Backend.main` (uvicorn from repo root).
-_BACKEND_DIR = str(Path(__file__).resolve().parent)
-if _BACKEND_DIR not in sys.path:
-    sys.path.insert(0, _BACKEND_DIR)
-
-from config import settings
-from logging_setup import get_logger
-from domain import (
+from Backend.config import settings
+from Backend.logging_setup import get_logger
+from Backend.domain import (
     cached_municipality_to_province_map,
     count_bag_pand_for_area,
     feature_matches_area_for_bag_object,
@@ -34,8 +26,8 @@ from domain import (
     feature_intersects_area,
     wijk_body,
 )
-from paths import ADMIN_BUURTEN_DIR, ADMIN_WIJKEN_DIR, SUMMARY_FILE
-from pdok import BAG_COLLECTION_URLS, BAG_PAND_URL, fetch_all_features
+from Backend.paths import SUMMARY_FILE
+from Backend.pdok import BAG_COLLECTION_URLS, BAG_PAND_URL, fetch_all_features
 
 logger = get_logger(__name__)
 

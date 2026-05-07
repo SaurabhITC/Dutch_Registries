@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from config import settings
+from Backend.config import settings
 
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 
