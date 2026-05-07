@@ -10,6 +10,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 </head>
 <body>
   <div id="app">
@@ -200,6 +201,26 @@
             <span class="badge" id="bagSummaryBadge">gegevens</span>
           </div>
           <div class="hint" id="bagSummaryBody">Kies een gebied en schakel BAG in.</div>
+
+          <div class="bagChartSection" id="chartSectionBouwjaar" style="display:none;">
+            <div class="bagChartHeading" id="chartTitleBouwjaar">Bouwjaar</div>
+            <div class="bagChartCanvasWrap"><canvas id="chartBouwjaar"></canvas></div>
+            <div class="summaryNote" id="chartNoteBouwjaar" style="display:none;"></div>
+          </div>
+
+          <div class="bagChartSection" id="chartSectionGebruiksdoel" style="display:none;">
+            <div class="bagChartHeading" id="chartTitleGebruiksdoel">Gebruiksdoel</div>
+            <div class="bagChartCanvasWrap"><canvas id="chartGebruiksdoel"></canvas></div>
+            <div class="summaryNote" id="chartNoteGebruiksdoel" style="display:none;"></div>
+          </div>
+
+          <div class="bagChartSection" id="chartSectionOppervlakte" style="display:none;">
+            <div class="bagChartHeading" id="chartTitleOppervlakte">Oppervlakte verblijfsobjecten</div>
+            <div class="bagChartCanvasWrap"><canvas id="chartOppervlakte"></canvas></div>
+            <div class="summaryNote" id="chartNoteOppervlakte" style="display:none;"></div>
+          </div>
+
+          <div class="summaryNote" id="bagChartSourceLine" style="display:none;"></div>
         </div>
 
         <div class="legend">

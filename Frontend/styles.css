@@ -750,6 +750,33 @@
       100%{ transform:translateX(100%); }
     }
 
+    .bagChartSection{
+      margin-top:14px;
+      padding-top:12px;
+      border-top:1px solid var(--stroke);
+    }
+    .bagChartHeading{
+      font-size:11px;
+      color: var(--muted);
+      font-weight:800;
+      margin:0 0 8px 0;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+    .bagChartCanvasWrap{
+      position:relative;
+      width:100%;
+      height:220px;
+    }
+    #chartSectionGebruiksdoel .bagChartCanvasWrap{
+      height:260px;
+    }
+    #bagChartSourceLine{
+      margin-top:14px;
+      padding-top:10px;
+      border-top:1px solid var(--stroke);
+    }
+
     @media (max-width: 980px){
       #bagSummaryCard{
         top:92px;

@@ -210,6 +210,23 @@
           summaryRetryWaitPrefix: "Nieuwe poging over ",
           summaryRetryWaitSuffix: " sec.",
           summaryRetryFailedPrefix: "Automatisch opnieuw proberen is mislukt voor ",
+          chartTitleBouwjaar: "Bouwjaar",
+          chartTitleGebruiksdoel: "Gebruiksdoel",
+          chartTitleOppervlakte: "Oppervlakte verblijfsobjecten",
+          chartAxisCount: "Aantal",
+          chartNoteSelectWijkBuurt: "Selecteer een wijk of buurt om grafieken te zien.",
+          chartSourceLine: "Bron: Kadaster BAG OGC API v2 + CBS Wijk- en Buurtkaart",
+          gebruiksdoelWoonfunctie: "Woonfunctie",
+          gebruiksdoelWinkelfunctie: "Winkelfunctie",
+          gebruiksdoelKantoorfunctie: "Kantoorfunctie",
+          gebruiksdoelIndustriefunctie: "Industriefunctie",
+          gebruiksdoelOnderwijsfunctie: "Onderwijsfunctie",
+          gebruiksdoelGezondheidszorgfunctie: "Gezondheidszorgfunctie",
+          gebruiksdoelSportfunctie: "Sportfunctie",
+          gebruiksdoelLogiesfunctie: "Logiesfunctie",
+          gebruiksdoelBijeenkomstfunctie: "Bijeenkomstfunctie",
+          gebruiksdoelCelfunctie: "Celfunctie",
+          gebruiksdoelOverigeGebruiksfunctie: "Overige gebruiksfunctie",
           formatLocale: "nl-NL"
         },
         en: {
@@ -320,6 +337,23 @@
           bagSummaryOnlySummaryAtLevelSuffix: " level only the summary is shown.",
           summaryNoObjectsLoaded: "No objects loaded.",
           partialLoadNotePrefix: "Note: partially loaded for ",
+          chartTitleBouwjaar: "Year of construction",
+          chartTitleGebruiksdoel: "Function / use",
+          chartTitleOppervlakte: "Surface area of residential units",
+          chartAxisCount: "Count",
+          chartNoteSelectWijkBuurt: "Select a wijk or buurt to see charts.",
+          chartSourceLine: "Source: Kadaster BAG OGC API v2 + CBS Wijk- en Buurtkaart",
+          gebruiksdoelWoonfunctie: "Residential",
+          gebruiksdoelWinkelfunctie: "Retail",
+          gebruiksdoelKantoorfunctie: "Office",
+          gebruiksdoelIndustriefunctie: "Industrial",
+          gebruiksdoelOnderwijsfunctie: "Education",
+          gebruiksdoelGezondheidszorgfunctie: "Healthcare",
+          gebruiksdoelSportfunctie: "Sport",
+          gebruiksdoelLogiesfunctie: "Lodging",
+          gebruiksdoelBijeenkomstfunctie: "Assembly",
+          gebruiksdoelCelfunctie: "Detention",
+          gebruiksdoelOverigeGebruiksfunctie: "Other use",
           formatLocale: "en-GB"
         }
       };
@@ -1125,6 +1159,443 @@
       function getCurrentBagAreaFeature(){ return selectedAreaFeature(); }
       function currentBagAreaLevel(){ return selectedAreaLevel(); }
 
+      // ===== BAG charts (bouwjaar / gebruiksdoel / oppervlakte) =====
+
+      const bagChartInstances = new Map();
+
+      const BOUWJAAR_BUCKETS = [
+        { label: '<1900',     min: -Infinity, max: 1899 },
+        { label: '1900-1909', min: 1900,      max: 1909 },
+        { label: '1910-1919', min: 1910,      max: 1919 },
+        { label: '1920-1929', min: 1920,      max: 1929 },
+        { label: '1930-1939', min: 1930,      max: 1939 },
+        { label: '1940-1949', min: 1940,      max: 1949 },
+        { label: '1950-1959', min: 1950,      max: 1959 },
+        { label: '1960-1969', min: 1960,      max: 1969 },
+        { label: '1970-1979', min: 1970,      max: 1979 },
+        { label: '1980-1989', min: 1980,      max: 1989 },
+        { label: '1990-1999', min: 1990,      max: 1999 },
+        { label: '2000-2009', min: 2000,      max: 2009 },
+        { label: '2010-2019', min: 2010,      max: 2019 },
+        { label: '2020+',     min: 2020,      max: Infinity },
+      ];
+
+      const OPPERVLAKTE_BUCKETS = [
+        { label: '<50 m²',     min: -Infinity, lt: 50 },
+        { label: '50-75 m²',   min: 50,        lt: 75 },
+        { label: '75-100 m²',  min: 75,        lt: 100 },
+        { label: '100-150 m²', min: 100,       lt: 150 },
+        { label: '150-250 m²', min: 150,       lt: 250 },
+        { label: '250+ m²',    min: 250,       lt: Infinity },
+      ];
+
+      const GEBRUIKSDOEL_CATEGORIES = [
+        'woonfunctie',
+        'winkelfunctie',
+        'kantoorfunctie',
+        'industriefunctie',
+        'onderwijsfunctie',
+        'gezondheidszorgfunctie',
+        'sportfunctie',
+        'logiesfunctie',
+        'bijeenkomstfunctie',
+        'celfunctie',
+        'overige gebruiksfunctie',
+      ];
+
+      const GEBRUIKSDOEL_TR_KEY = {
+        'woonfunctie':              'gebruiksdoelWoonfunctie',
+        'winkelfunctie':            'gebruiksdoelWinkelfunctie',
+        'kantoorfunctie':           'gebruiksdoelKantoorfunctie',
+        'industriefunctie':         'gebruiksdoelIndustriefunctie',
+        'onderwijsfunctie':         'gebruiksdoelOnderwijsfunctie',
+        'gezondheidszorgfunctie':   'gebruiksdoelGezondheidszorgfunctie',
+        'sportfunctie':             'gebruiksdoelSportfunctie',
+        'logiesfunctie':            'gebruiksdoelLogiesfunctie',
+        'bijeenkomstfunctie':       'gebruiksdoelBijeenkomstfunctie',
+        'celfunctie':               'gebruiksdoelCelfunctie',
+        'overige gebruiksfunctie':  'gebruiksdoelOverigeGebruiksfunctie',
+      };
+
+      const MIN_FEATURES_FOR_CHART = 10;
+
+      function bagChartCssVar(name, fallback){
+        try{
+          const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+          return v || fallback;
+        }catch(_){ return fallback; }
+      }
+
+      function destroyBagChart(canvasId){
+        const inst = bagChartInstances.get(canvasId);
+        if (inst){
+          try{ inst.destroy(); }catch(_){ }
+          bagChartInstances.delete(canvasId);
+        }
+      }
+
+      function aggregateBouwjaar(features){
+        const counts = BOUWJAAR_BUCKETS.map(() => 0);
+        for (const f of features){
+          const raw = f?.properties?.bouwjaar;
+          const year = Number(raw);
+          if (!Number.isFinite(year) || year < 1) continue;
+          for (let i = 0; i < BOUWJAAR_BUCKETS.length; i++){
+            const b = BOUWJAAR_BUCKETS[i];
+            if (year >= b.min && year <= b.max){
+              counts[i]++;
+              break;
+            }
+          }
+        }
+        return { labels: BOUWJAAR_BUCKETS.map(b => b.label), counts };
+      }
+
+      function aggregateGebruiksdoel(features){
+        const counts = Object.create(null);
+        for (const c of GEBRUIKSDOEL_CATEGORIES) counts[c] = 0;
+        for (const f of features){
+          const raw = f?.properties?.gebruiksdoel;
+          if (typeof raw !== 'string' || !raw.trim()) continue;
+          const tokens = raw.split(',');
+          for (let i = 0; i < tokens.length; i++){
+            const tok = tokens[i].trim().toLowerCase();
+            if (!tok) continue;
+            if (tok in counts) counts[tok]++;
+          }
+        }
+        const entries = GEBRUIKSDOEL_CATEGORIES
+          .map(c => ({ key: c, count: counts[c] }))
+          .filter(e => e.count > 0)
+          .sort((a, b) => b.count - a.count);
+        return entries;
+      }
+
+      function aggregateOppervlakte(features){
+        const counts = OPPERVLAKTE_BUCKETS.map(() => 0);
+        for (const f of features){
+          const raw = f?.properties?.oppervlakte;
+          const v = Number(raw);
+          if (!Number.isFinite(v) || v <= 0) continue;
+          for (let i = 0; i < OPPERVLAKTE_BUCKETS.length; i++){
+            const b = OPPERVLAKTE_BUCKETS[i];
+            if (v >= b.min && v < b.lt){
+              counts[i]++;
+              break;
+            }
+          }
+        }
+        return { labels: OPPERVLAKTE_BUCKETS.map(b => b.label), counts };
+      }
+
+      function timedAggregate(name, fn){
+        const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+        const result = fn();
+        const t1 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+        const elapsed = t1 - t0;
+        if (elapsed > 150) console.warn(`BAG chart aggregation (${name}) took ${elapsed.toFixed(0)}ms`);
+        return result;
+      }
+
+      function setChartSectionVisible(sectionId, visible){
+        const el = document.getElementById(sectionId);
+        if (el) el.style.display = visible ? '' : 'none';
+      }
+
+      function setChartCanvasVisible(canvasId, visible){
+        const el = document.getElementById(canvasId);
+        if (!el) return;
+        const wrap = el.parentElement;
+        if (wrap) wrap.style.display = visible ? '' : 'none';
+      }
+
+      function setChartHeading(headingId, key){
+        const el = document.getElementById(headingId);
+        if (el) el.textContent = tr(key);
+      }
+
+      function setChartNote(noteId, text){
+        const el = document.getElementById(noteId);
+        if (!el) return;
+        if (text){
+          el.textContent = text;
+          el.style.display = '';
+        } else {
+          el.textContent = '';
+          el.style.display = 'none';
+        }
+      }
+
+      function commonChartOptions(){
+        const muted = bagChartCssVar('--muted', 'rgba(15,23,42,0.62)');
+        return {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 250 },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const value = ctx.parsed?.y ?? ctx.parsed?.x ?? ctx.parsed;
+                  return `${tr('chartAxisCount')}: ${formatNumber(value)}`;
+                }
+              }
+            },
+          },
+          scales: {
+            x: {
+              ticks: { color: muted, font: { size: 10 } },
+              grid: { display: false },
+            },
+            y: {
+              beginAtZero: true,
+              ticks: { color: muted, font: { size: 10 }, precision: 0 },
+              grid: { color: 'rgba(15,23,42,0.06)' },
+            },
+          },
+        };
+      }
+
+      function renderBouwjaarChart(features){
+        const sectionId = 'chartSectionBouwjaar';
+        const canvasId = 'chartBouwjaar';
+        const headingId = 'chartTitleBouwjaar';
+        const noteId = 'chartNoteBouwjaar';
+        setChartHeading(headingId, 'chartTitleBouwjaar');
+        destroyBagChart(canvasId);
+        if (!features || features.length < MIN_FEATURES_FOR_CHART){
+          setChartSectionVisible(sectionId, false);
+          return false;
+        }
+        const { labels, counts } = timedAggregate('bouwjaar', () => aggregateBouwjaar(features));
+        const total = counts.reduce((a, b) => a + b, 0);
+        if (total === 0){
+          setChartSectionVisible(sectionId, false);
+          return false;
+        }
+        setChartSectionVisible(sectionId, true);
+        setChartCanvasVisible(canvasId, true);
+        setChartNote(noteId, '');
+        if (typeof Chart === 'undefined') return false;
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return false;
+        const color = bagChartCssVar('--accent', '#0ea5e9');
+        const opts = commonChartOptions();
+        opts.scales.x.ticks.maxRotation = 60;
+        opts.scales.x.ticks.minRotation = 60;
+        opts.scales.x.ticks.autoSkip = false;
+        const inst = new Chart(canvas.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [{ data: counts, backgroundColor: color, borderRadius: 3, maxBarThickness: 22 }],
+          },
+          options: opts,
+        });
+        bagChartInstances.set(canvasId, inst);
+        return true;
+      }
+
+      function renderGebruiksdoelChart(features){
+        const sectionId = 'chartSectionGebruiksdoel';
+        const canvasId = 'chartGebruiksdoel';
+        const headingId = 'chartTitleGebruiksdoel';
+        const noteId = 'chartNoteGebruiksdoel';
+        setChartHeading(headingId, 'chartTitleGebruiksdoel');
+        destroyBagChart(canvasId);
+        if (!features || features.length < MIN_FEATURES_FOR_CHART){
+          setChartSectionVisible(sectionId, false);
+          return false;
+        }
+        const entries = timedAggregate('gebruiksdoel', () => aggregateGebruiksdoel(features));
+        if (!entries.length){
+          setChartSectionVisible(sectionId, false);
+          return false;
+        }
+        setChartSectionVisible(sectionId, true);
+        setChartCanvasVisible(canvasId, true);
+        setChartNote(noteId, '');
+        if (typeof Chart === 'undefined') return false;
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return false;
+        const color = bagChartCssVar('--accent', '#0ea5e9');
+        const muted = bagChartCssVar('--muted', 'rgba(15,23,42,0.62)');
+        const labels = entries.map(e => tr(GEBRUIKSDOEL_TR_KEY[e.key] || e.key));
+        const counts = entries.map(e => e.count);
+        const inst = new Chart(canvas.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [{ data: counts, backgroundColor: color, borderRadius: 3, maxBarThickness: 18 }],
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 250 },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => `${tr('chartAxisCount')}: ${formatNumber(ctx.parsed.x)}`,
+                },
+              },
+            },
+            scales: {
+              x: {
+                beginAtZero: true,
+                ticks: { color: muted, font: { size: 10 }, precision: 0 },
+                grid: { color: 'rgba(15,23,42,0.06)' },
+              },
+              y: {
+                ticks: { color: muted, font: { size: 10 }, autoSkip: false },
+                grid: { display: false },
+              },
+            },
+          },
+        });
+        bagChartInstances.set(canvasId, inst);
+        return true;
+      }
+
+      function renderOppervlakteChart(features){
+        const sectionId = 'chartSectionOppervlakte';
+        const canvasId = 'chartOppervlakte';
+        const headingId = 'chartTitleOppervlakte';
+        const noteId = 'chartNoteOppervlakte';
+        setChartHeading(headingId, 'chartTitleOppervlakte');
+        destroyBagChart(canvasId);
+        if (!features || features.length < MIN_FEATURES_FOR_CHART){
+          setChartSectionVisible(sectionId, false);
+          return false;
+        }
+        const { labels, counts } = timedAggregate('oppervlakte', () => aggregateOppervlakte(features));
+        const total = counts.reduce((a, b) => a + b, 0);
+        if (total === 0){
+          setChartSectionVisible(sectionId, false);
+          return false;
+        }
+        setChartSectionVisible(sectionId, true);
+        setChartCanvasVisible(canvasId, true);
+        setChartNote(noteId, '');
+        if (typeof Chart === 'undefined') return false;
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return false;
+        const color = bagChartCssVar('--accent', '#0ea5e9');
+        const opts = commonChartOptions();
+        opts.scales.x.ticks.autoSkip = false;
+        const inst = new Chart(canvas.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [{ data: counts, backgroundColor: color, borderRadius: 3, maxBarThickness: 36 }],
+          },
+          options: opts,
+        });
+        bagChartInstances.set(canvasId, inst);
+        return true;
+      }
+
+      function showChartUnavailable(sectionId, canvasId, headingId, headingKey, noteId){
+        destroyBagChart(canvasId);
+        setChartHeading(headingId, headingKey);
+        setChartSectionVisible(sectionId, true);
+        setChartCanvasVisible(canvasId, false);
+        setChartNote(noteId, tr('chartNoteSelectWijkBuurt'));
+      }
+
+      function hideChartSection(sectionId, canvasId){
+        destroyBagChart(canvasId);
+        setChartSectionVisible(sectionId, false);
+      }
+
+      function getCachedBagFeatures(key){
+        const level = currentBagAreaLevel();
+        if (level !== 'wijk' && level !== 'buurt') return null;
+        const areaFeature = getCurrentBagAreaFeature();
+        if (!areaFeature) return null;
+        const statcode = areaFeature.properties?._statcode || '';
+        const cacheKey = bagCacheKey(key, level, statcode);
+        const fc = bagFeatureCache.get(cacheKey);
+        return fc?.features || null;
+      }
+
+      function renderBagCharts(){
+        const sourceLineEl = document.getElementById('bagChartSourceLine');
+        const activeKeys = activeBagKeys();
+        const pandActive = activeKeys.includes('pand');
+        const voActive = activeKeys.includes('verblijfsobject');
+        const level = currentBagAreaLevel();
+        const featureLevel = level === 'wijk' || level === 'buurt';
+        const areaFeature = getCurrentBagAreaFeature();
+        const anyChartLayerActive = pandActive || voActive;
+
+        if (!anyChartLayerActive || !areaFeature){
+          hideChartSection('chartSectionBouwjaar', 'chartBouwjaar');
+          hideChartSection('chartSectionGebruiksdoel', 'chartGebruiksdoel');
+          hideChartSection('chartSectionOppervlakte', 'chartOppervlakte');
+          if (sourceLineEl) sourceLineEl.style.display = 'none';
+          return;
+        }
+
+        // Chart 1: bouwjaar from pand
+        if (!pandActive){
+          hideChartSection('chartSectionBouwjaar', 'chartBouwjaar');
+        } else if (!featureLevel){
+          showChartUnavailable('chartSectionBouwjaar', 'chartBouwjaar', 'chartTitleBouwjaar', 'chartTitleBouwjaar', 'chartNoteBouwjaar');
+        } else {
+          const pandFeatures = getCachedBagFeatures('pand') || [];
+          renderBouwjaarChart(pandFeatures);
+        }
+
+        // Chart 2: gebruiksdoel from VO (preferred) or pand fallback
+        if (!pandActive && !voActive){
+          hideChartSection('chartSectionGebruiksdoel', 'chartGebruiksdoel');
+        } else if (!featureLevel){
+          showChartUnavailable('chartSectionGebruiksdoel', 'chartGebruiksdoel', 'chartTitleGebruiksdoel', 'chartTitleGebruiksdoel', 'chartNoteGebruiksdoel');
+        } else {
+          const sourceFeatures = voActive
+            ? (getCachedBagFeatures('verblijfsobject') || [])
+            : (getCachedBagFeatures('pand') || []);
+          renderGebruiksdoelChart(sourceFeatures);
+        }
+
+        // Chart 3: oppervlakte from VO
+        if (!voActive){
+          hideChartSection('chartSectionOppervlakte', 'chartOppervlakte');
+        } else if (!featureLevel){
+          showChartUnavailable('chartSectionOppervlakte', 'chartOppervlakte', 'chartTitleOppervlakte', 'chartTitleOppervlakte', 'chartNoteOppervlakte');
+        } else {
+          const voFeatures = getCachedBagFeatures('verblijfsobject') || [];
+          renderOppervlakteChart(voFeatures);
+        }
+
+        if (sourceLineEl){
+          const anyChartSectionVisible = ['chartSectionBouwjaar', 'chartSectionGebruiksdoel', 'chartSectionOppervlakte']
+            .some(id => {
+              const el = document.getElementById(id);
+              return el && el.style.display !== 'none';
+            });
+          if (anyChartSectionVisible){
+            sourceLineEl.textContent = tr('chartSourceLine');
+            sourceLineEl.style.display = '';
+          } else {
+            sourceLineEl.style.display = 'none';
+          }
+        }
+      }
+
+      function clearAllBagCharts(){
+        hideChartSection('chartSectionBouwjaar', 'chartBouwjaar');
+        hideChartSection('chartSectionGebruiksdoel', 'chartGebruiksdoel');
+        hideChartSection('chartSectionOppervlakte', 'chartOppervlakte');
+        const sourceLineEl = document.getElementById('bagChartSourceLine');
+        if (sourceLineEl) sourceLineEl.style.display = 'none';
+      }
+
+      // ===== end BAG charts =====
+
       async function refreshBagView(){
         const activeKeys = activeBagKeys();
         const reqId = ++bagFeatureRequestId;
@@ -1135,6 +1606,7 @@
           bagSummarySectionHtml = '';
           updateBagLegend([], {}, false);
           updateDataSummaryCard();
+          clearAllBagCharts();
           return;
         }
 
@@ -1146,6 +1618,7 @@
           clearAllBagLayers();
           updateBagLegend([], {}, false);
           renderBagSummaryMessage(tr('bagSummaryNoSelection'));
+          clearAllBagCharts();
           return;
         }
 
@@ -1260,6 +1733,7 @@
         if (reqId !== bagFeatureRequestId) return;
         updateBagLegend(activeKeys, countsByKey, showMap);
         renderBagLayerSummary(rows, areaFeature, level, partialKeys, showMap, failedKeys.length ? retryFailedMessage(failedKeys) : '');
+        renderBagCharts();
       }
 
 
