@@ -1,4 +1,4 @@
-# Dutch Registries Dashboard
+﻿# Dutch Registries Dashboard
 
 An in-browser dashboard for exploring Dutch base registries (BAG, BGT, BRO) at
 multiple administrative levels. Users can drill down from province → municipality
@@ -18,7 +18,7 @@ served by the FastAPI backend to avoid repeated heavyweight API calls.
 
 This dashboard is delivered as two artifacts:
 
-- **The Docker image** — application code only, no runtime data
+- **The Docker image** - application code only, no runtime data
 - **A seed `data/` folder** containing precomputed CBS administrative boundaries and BAG summary counts, delivered separately
 
 ### Prerequisites
@@ -57,7 +57,7 @@ A 24-hour automated refresh is planned but not yet implemented.
 ```
 Backend/     FastAPI application (main.py) and smoke tests
 Frontend/    Static dashboard (HTML/JS/CSS, MapLibre GL)
-data/        Runtime cache — admin boundary JSON + BAG pand summary store
+data/        Runtime cache - admin boundary JSON + BAG pand summary store
 ```
 
 ## Local development
@@ -117,7 +117,7 @@ POST http://localhost:8000/api/bag/pand/summary/rebuild
 
 This is a long-running synchronous request that can take an hour or more.
 Progress is logged to stdout. Keep the terminal/server running until it
-finishes — closing the request before completion may leave the summary store
+finishes - closing the request before completion may leave the summary store
 in a partial state. The result is written to
 `data/bag_data/bag_pand_summary_store.json`.
 

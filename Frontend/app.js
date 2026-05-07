@@ -1,4 +1,4 @@
-// Frontend application logic for the split frontend/backend dashboard.
+﻿// Frontend application logic for the split frontend/backend dashboard.
 // Administrative hierarchy and BAG data are loaded from the backend endpoints.
 // External PDOK services are used directly only for basemap rendering.
 
@@ -169,10 +169,10 @@
           basemapLuchtfoto: "PDOK Luchtfoto (Actueel)",
           basemapNone: "Geen basiskaart (wit)",
           transparency: "Transparantie",
-          selectProvince: "— Selecteer een provincie —",
-          allMunicipalities: "— Alle gemeenten in provincie —",
-          allWijken: "— Alle wijken in gemeente —",
-          allBuurten: "— Alle buurten in wijk —",
+          selectProvince: "- Selecteer een provincie -",
+          allMunicipalities: "- Alle gemeenten in provincie -",
+          allWijken: "- Alle wijken in gemeente -",
+          allBuurten: "- Alle buurten in wijk -",
           loadingProvinces: "Provincies laden…",
           loadingWijken: "Wijken laden…",
           loadingBuurten: "Buurten laden…",
@@ -213,7 +213,7 @@
           bagSummaryEmptyState: "Selecteer een gebied om gegevens te zien.",
           bagSummaryLoadingStatic: "Gegevens laden, even geduld…",
           vizBtnInactive: "Toon op kaart",
-          vizBtnActive: "Wordt op kaart getoond — klik om te stoppen",
+          vizBtnActive: "Wordt op kaart getoond - klik om te stoppen",
           vizBtnDisabledHint: "Schakel de relevante BAG-laag in",
           vizLegendTitleBouwjaar: "Bouwjaar op kaart",
           vizLegendTitleGebruiksdoel: "Gebruiksdoel op kaart",
@@ -315,10 +315,10 @@
           basemapLuchtfoto: "PDOK aerial imagery (current)",
           basemapNone: "No basemap (white)",
           transparency: "Transparency",
-          selectProvince: "— Select a province —",
-          allMunicipalities: "— All municipalities in province —",
-          allWijken: "— All districts in municipality —",
-          allBuurten: "— All neighborhoods in district —",
+          selectProvince: "- Select a province -",
+          allMunicipalities: "- All municipalities in province -",
+          allWijken: "- All districts in municipality -",
+          allBuurten: "- All neighborhoods in district -",
           loadingProvinces: "Loading provinces…",
           loadingWijken: "Loading districts…",
           loadingBuurten: "Loading neighborhoods…",
@@ -351,7 +351,7 @@
           bagSummaryEmptyState: "Select an area to see data.",
           bagSummaryLoadingStatic: "Loading data, please wait…",
           vizBtnInactive: "Visualize on map",
-          vizBtnActive: "Showing on map — click to stop",
+          vizBtnActive: "Showing on map - click to stop",
           vizBtnDisabledHint: "Enable the relevant BAG layer first",
           vizLegendTitleBouwjaar: "Year of construction on map",
           vizLegendTitleGebruiksdoel: "Function / use on map",
@@ -646,7 +646,7 @@
       let bagSummarySectionHtml = "";
       const AUTO_RETRY_DELAYS_MS = [1500, 4000, 8000];
 
-      // Map visualization state — declared here (top-of-file) because
+      // Map visualization state - declared here (top-of-file) because
       // updateLegendContext reads `activeMapVisualization` during boot via
       // applyLanguageText, which would TDZ-throw if the let lived inside
       // the Map visualization section further down the file.
@@ -666,13 +666,13 @@
         if (!sections.length){
           const areaSelected = !!selectedAreaFeature();
           if (!areaSelected){
-            // Empty state — friendly message, no skeletons.
+            // Empty state - friendly message, no skeletons.
             bagSummaryCardEl.style.display = 'block';
             delete bagSummaryBodyEl.dataset.dynamic;
             bagSummaryBodyEl.innerHTML = `<div class="summaryNote">${escapeHtml(tr('bagSummaryEmptyState'))}</div>`;
             return;
           }
-          // Area selected but no BAG layers active — keep card hidden.
+          // Area selected but no BAG layers active - keep card hidden.
           bagSummaryCardEl.style.display = 'none';
           delete bagSummaryBodyEl.dataset.dynamic;
           bagSummaryBodyEl.textContent = tr('bagSummaryChooseArea');
@@ -2129,7 +2129,7 @@
               loadingKeys.add(key);
             }
           } else {
-            initialRows.push({ key, label, count: '—' });
+            initialRows.push({ key, label, count: '-' });
           }
         }
 
@@ -2191,7 +2191,7 @@
               rows.push({ label, count });
             } else {
               countsByKey[key] = 0;
-              rows.push({ label, count: '—' });
+              rows.push({ label, count: '-' });
             }
             continue;
           }
