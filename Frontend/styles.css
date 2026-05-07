@@ -811,6 +811,60 @@
       50%      { opacity: 0.8; }
     }
 
+    .bagChartVizBtn{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      margin-top:10px;
+      padding:6px 10px;
+      border-radius:8px;
+      border:1px solid var(--accent);
+      background: rgba(255,255,255,0.92);
+      color: var(--accent);
+      font-size:11px;
+      font-weight:700;
+      letter-spacing:0.01em;
+      cursor:pointer;
+      line-height:1.2;
+    }
+    .bagChartVizBtn:hover:not(:disabled){
+      background: rgba(14,165,233,0.08);
+    }
+    .bagChartVizBtn.is-active{
+      background: var(--accent);
+      color: #ffffff;
+    }
+    .bagChartVizBtn.is-active:hover:not(:disabled){
+      background: #0284c7;
+    }
+    .bagChartVizBtn:disabled{
+      opacity: 0.55;
+      cursor: not-allowed;
+      border-color: var(--stroke);
+      color: var(--muted);
+      background: rgba(255,255,255,0.65);
+    }
+
+    .legendVizRows{
+      display:grid;
+      gap:4px;
+      margin-top:6px;
+    }
+    .legendVizRow{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      font-size:11px;
+      color: var(--text);
+    }
+    .legendVizSwatch{
+      width:14px;
+      height:10px;
+      border-radius:2px;
+      border:1px solid rgba(15,23,42,0.18);
+      flex:0 0 auto;
+    }
+
     @media (max-width: 980px){
       #bagSummaryCard{
         top:92px;

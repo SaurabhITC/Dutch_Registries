@@ -212,6 +212,15 @@
           summaryRetryFailedPrefix: "Automatisch opnieuw proberen is mislukt voor ",
           bagSummaryEmptyState: "Selecteer een gebied om gegevens te zien.",
           bagSummaryLoadingStatic: "Gegevens laden, even geduld…",
+          vizBtnInactive: "Toon op kaart",
+          vizBtnActive: "Wordt op kaart getoond — klik om te stoppen",
+          vizBtnDisabledHint: "Schakel de relevante BAG-laag in",
+          vizLegendTitleBouwjaar: "Bouwjaar op kaart",
+          vizLegendTitleGebruiksdoel: "Gebruiksdoel op kaart",
+          vizLegendTitleOppervlakte: "Oppervlakte op kaart",
+          vizLegendUnknown: "Onbekend",
+          vizLegendNoData: "Geen gegevens",
+          vizLegendOverige: "Overige",
           chartTitleBouwjaar: "Bouwjaar",
           chartTitleGebruiksdoel: "Gebruiksdoel",
           chartTitleOppervlakte: "Oppervlakte verblijfsobjecten",
@@ -341,6 +350,15 @@
           partialLoadNotePrefix: "Note: partially loaded for ",
           bagSummaryEmptyState: "Select an area to see data.",
           bagSummaryLoadingStatic: "Loading data, please wait…",
+          vizBtnInactive: "Visualize on map",
+          vizBtnActive: "Showing on map — click to stop",
+          vizBtnDisabledHint: "Enable the relevant BAG layer first",
+          vizLegendTitleBouwjaar: "Year of construction on map",
+          vizLegendTitleGebruiksdoel: "Function / use on map",
+          vizLegendTitleOppervlakte: "Surface area on map",
+          vizLegendUnknown: "Unknown",
+          vizLegendNoData: "No data",
+          vizLegendOverige: "Other",
           chartTitleBouwjaar: "Year of construction",
           chartTitleGebruiksdoel: "Function / use",
           chartTitleOppervlakte: "Surface area of residential units",
@@ -627,6 +645,13 @@
       const bagFeatureCache = new Map();
       let bagSummarySectionHtml = "";
       const AUTO_RETRY_DELAYS_MS = [1500, 4000, 8000];
+
+      // Map visualization state — declared here (top-of-file) because
+      // updateLegendContext reads `activeMapVisualization` during boot via
+      // applyLanguageText, which would TDZ-throw if the let lived inside
+      // the Map visualization section further down the file.
+      let activeMapVisualization = null;
+      const savedLayerPaint = new Map();
 
       function registrySummarySectionHtml(registryName, innerHtml){
         return `
@@ -1425,6 +1450,7 @@
         const canvas = document.getElementById(canvasId);
         if (!canvas) return false;
         const color = bagChartCssVar('--accent', '#0ea5e9');
+        const barColors = bouwjaarBarColors(labels) || color;
         const opts = commonChartOptions();
         opts.scales.x.ticks.maxRotation = 60;
         opts.scales.x.ticks.minRotation = 60;
@@ -1433,7 +1459,7 @@
           type: 'bar',
           data: {
             labels,
-            datasets: [{ data: counts, backgroundColor: color, borderRadius: 3, maxBarThickness: 22 }],
+            datasets: [{ data: counts, backgroundColor: barColors, borderRadius: 3, maxBarThickness: 22 }],
           },
           options: opts,
         });
@@ -1468,11 +1494,12 @@
         const muted = bagChartCssVar('--muted', 'rgba(15,23,42,0.62)');
         const labels = entries.map(e => tr(GEBRUIKSDOEL_TR_KEY[e.key] || e.key));
         const counts = entries.map(e => e.count);
+        const barColors = gebruiksdoelBarColors(entries) || color;
         const inst = new Chart(canvas.getContext('2d'), {
           type: 'bar',
           data: {
             labels,
-            datasets: [{ data: counts, backgroundColor: color, borderRadius: 3, maxBarThickness: 18 }],
+            datasets: [{ data: counts, backgroundColor: barColors, borderRadius: 3, maxBarThickness: 18 }],
           },
           options: {
             indexAxis: 'y',
@@ -1529,13 +1556,14 @@
         const canvas = document.getElementById(canvasId);
         if (!canvas) return false;
         const color = bagChartCssVar('--accent', '#0ea5e9');
+        const barColors = oppervlakteBarColors() || color;
         const opts = commonChartOptions();
         opts.scales.x.ticks.autoSkip = false;
         const inst = new Chart(canvas.getContext('2d'), {
           type: 'bar',
           data: {
             labels,
-            datasets: [{ data: counts, backgroundColor: color, borderRadius: 3, maxBarThickness: 36 }],
+            datasets: [{ data: counts, backgroundColor: barColors, borderRadius: 3, maxBarThickness: 36 }],
           },
           options: opts,
         });
@@ -1681,6 +1709,369 @@
 
       // ===== end BAG charts =====
 
+      // ===== Map visualization (bouwjaar / gebruiksdoel / oppervlakte) =====
+
+      // `activeMapVisualization` (the single source of truth for which
+      // chart, if any, is recoloring the map) is declared at the top of
+      // the file so it is in scope during boot when applyLanguageText →
+      // updateLegendContext reads it.
+
+      // ColorBrewer-derived palettes. Hex codes match the spec exactly.
+      const VIZ_PALETTE_BOUWJAAR = {
+        preBefore1900:  '#ffffb2',
+        band1900_1944:  '#fed976',
+        band1945_1969:  '#feb24c',
+        band1970_1989:  '#fd8d3c',
+        band1990_2009:  '#f03b20',
+        band2010Plus:   '#bd0026',
+        unknown:        '#bdbdbd',
+      };
+      const VIZ_PALETTE_GEBRUIKSDOEL = {
+        woonfunctie:            '#66c2a5',
+        winkelfunctie:          '#fc8d62',
+        kantoorfunctie:         '#8da0cb',
+        industriefunctie:       '#e78ac3',
+        onderwijsfunctie:       '#a6d854',
+        gezondheidszorgfunctie: '#ffd92f',
+        overige:                '#b3b3b3',
+        unknown:                '#bdbdbd',
+      };
+      const VIZ_PALETTE_OPPERVLAKTE = {
+        band_lt50:    '#eff3ff',
+        band_50_75:   '#c6dbef',
+        band_75_100:  '#9ecae1',
+        band_100_150: '#6baed6',
+        band_150_250: '#3182bd',
+        band_250plus: '#08519c',
+        unknown:      '#bdbdbd',
+        noData:       '#bdbdbd',
+      };
+
+      // `savedLayerPaint` (original paint values keyed by
+      // `${layerId}::${propName}`, captured at activation and restored on
+      // deactivation) is declared at the top of the file alongside
+      // `activeMapVisualization` to keep the visualization-state pair
+      // co-located and TDZ-safe.
+
+      // ---------- MapLibre paint expressions ----------
+
+      function vizExpressionBouwjaar(){
+        return [
+          'case',
+          ['any',
+            ['!', ['has', 'bouwjaar']],
+            ['==', ['get', 'bouwjaar'], null],
+            ['<=', ['to-number', ['get', 'bouwjaar'], 0], 0],
+            ['>=', ['to-number', ['get', 'bouwjaar'], 0], 9000],
+          ],
+          VIZ_PALETTE_BOUWJAAR.unknown,
+          [
+            'step',
+            ['to-number', ['get', 'bouwjaar']],
+            VIZ_PALETTE_BOUWJAAR.preBefore1900,
+            1900, VIZ_PALETTE_BOUWJAAR.band1900_1944,
+            1945, VIZ_PALETTE_BOUWJAAR.band1945_1969,
+            1970, VIZ_PALETTE_BOUWJAAR.band1970_1989,
+            1990, VIZ_PALETTE_BOUWJAAR.band1990_2009,
+            2010, VIZ_PALETTE_BOUWJAAR.band2010Plus,
+          ],
+        ];
+      }
+
+      function vizExpressionGebruiksdoel(){
+        // Bind `gd` to the comma-prefix of `gebruiksdoel`. MapLibre's `let`
+        // only exposes the variable inside its BODY (the third argument);
+        // the binding-value (second argument) cannot reference `var(gd)`,
+        // so the prefix-length calculation here uses `["get","gebruiksdoel"]`
+        // directly. Every `["var","gd"]` lives strictly inside the body.
+        return [
+          'let',
+          'gd',
+          [
+            'slice',
+            ['to-string', ['get', 'gebruiksdoel']],
+            0,
+            [
+              'case',
+              ['>=', ['index-of', ',', ['to-string', ['get', 'gebruiksdoel']]], 0],
+              ['index-of', ',', ['to-string', ['get', 'gebruiksdoel']]],
+              ['length', ['to-string', ['get', 'gebruiksdoel']]],
+            ],
+          ],
+          [
+            'case',
+            ['==', ['typeof', ['get', 'gebruiksdoel']], 'string'],
+            [
+              'match',
+              ['var', 'gd'],
+              'woonfunctie',            VIZ_PALETTE_GEBRUIKSDOEL.woonfunctie,
+              'winkelfunctie',          VIZ_PALETTE_GEBRUIKSDOEL.winkelfunctie,
+              'kantoorfunctie',         VIZ_PALETTE_GEBRUIKSDOEL.kantoorfunctie,
+              'industriefunctie',       VIZ_PALETTE_GEBRUIKSDOEL.industriefunctie,
+              'onderwijsfunctie',       VIZ_PALETTE_GEBRUIKSDOEL.onderwijsfunctie,
+              'gezondheidszorgfunctie', VIZ_PALETTE_GEBRUIKSDOEL.gezondheidszorgfunctie,
+              VIZ_PALETTE_GEBRUIKSDOEL.overige,
+            ],
+            VIZ_PALETTE_GEBRUIKSDOEL.unknown,
+          ],
+        ];
+      }
+
+      function vizExpressionOppervlakte(){
+        return [
+          'case',
+          ['any',
+            ['!', ['has', 'oppervlakte']],
+            ['==', ['get', 'oppervlakte'], null],
+            ['<=', ['to-number', ['get', 'oppervlakte'], 0], 0],
+          ],
+          VIZ_PALETTE_OPPERVLAKTE.unknown,
+          [
+            'step',
+            ['to-number', ['get', 'oppervlakte']],
+            VIZ_PALETTE_OPPERVLAKTE.band_lt50,
+            50,  VIZ_PALETTE_OPPERVLAKTE.band_50_75,
+            75,  VIZ_PALETTE_OPPERVLAKTE.band_75_100,
+            100, VIZ_PALETTE_OPPERVLAKTE.band_100_150,
+            150, VIZ_PALETTE_OPPERVLAKTE.band_150_250,
+            250, VIZ_PALETTE_OPPERVLAKTE.band_250plus,
+          ],
+        ];
+      }
+
+      // ---------- Layer override resolution ----------
+
+      function visualizationLayersFor(mode){
+        const activeKeys = activeBagKeys();
+        if (mode === 'bouwjaar'){
+          return [{ layerId: 'bag-pand-fill', prop: 'fill-color', value: vizExpressionBouwjaar() }];
+        }
+        if (mode === 'gebruiksdoel'){
+          if (activeKeys.includes('verblijfsobject')){
+            return [{ layerId: 'bag-verblijfsobject-circle', prop: 'circle-color', value: vizExpressionGebruiksdoel() }];
+          }
+          if (activeKeys.includes('pand')){
+            return [{ layerId: 'bag-pand-fill', prop: 'fill-color', value: vizExpressionGebruiksdoel() }];
+          }
+          return [];
+        }
+        if (mode === 'oppervlakte'){
+          const out = [{ layerId: 'bag-verblijfsobject-circle', prop: 'circle-color', value: vizExpressionOppervlakte() }];
+          if (activeKeys.includes('pand')){
+            out.push({ layerId: 'bag-pand-fill', prop: 'fill-color', value: VIZ_PALETTE_OPPERVLAKTE.noData });
+          }
+          return out;
+        }
+        return [];
+      }
+
+      function vizModeSourceIsActive(mode){
+        const keys = activeBagKeys();
+        if (mode === 'bouwjaar')      return keys.includes('pand');
+        if (mode === 'gebruiksdoel')  return keys.includes('pand') || keys.includes('verblijfsobject');
+        if (mode === 'oppervlakte')   return keys.includes('verblijfsobject');
+        return false;
+      }
+
+      function vizModeIsAvailable(mode){
+        const level = currentBagAreaLevel();
+        if (level !== 'wijk' && level !== 'buurt') return false;
+        return vizModeSourceIsActive(mode);
+      }
+
+      // ---------- Apply / restore paint properties ----------
+
+      function applyMapVisualization(mode){
+        const overrides = visualizationLayersFor(mode);
+        for (const { layerId, prop, value } of overrides){
+          if (!map.getLayer(layerId)) continue;
+          const cacheKey = `${layerId}::${prop}`;
+          if (!savedLayerPaint.has(cacheKey)){
+            savedLayerPaint.set(cacheKey, map.getPaintProperty(layerId, prop));
+          }
+          try{ map.setPaintProperty(layerId, prop, value); }
+          catch(err){ console.warn(`Visualization paint set failed for ${layerId}.${prop}`, err); }
+        }
+      }
+
+      function restoreMapVisualization(){
+        for (const [cacheKey, originalValue] of savedLayerPaint){
+          const sep = cacheKey.indexOf('::');
+          const layerId = cacheKey.slice(0, sep);
+          const prop = cacheKey.slice(sep + 2);
+          if (map.getLayer(layerId)){
+            try{ map.setPaintProperty(layerId, prop, originalValue); }
+            catch(err){ console.warn(`Visualization paint restore failed for ${layerId}.${prop}`, err); }
+          }
+        }
+        savedLayerPaint.clear();
+      }
+
+      function refreshActiveMapVisualization(){
+        if (!activeMapVisualization) return;
+        restoreMapVisualization();
+        applyMapVisualization(activeMapVisualization);
+      }
+
+      // ---------- State transitions ----------
+
+      function setActiveMapVisualization(mode){
+        if (mode === activeMapVisualization){
+          deactivateMapVisualization();
+          return;
+        }
+        if (activeMapVisualization){
+          restoreMapVisualization();
+        }
+        activeMapVisualization = mode;
+        applyMapVisualization(mode);
+        updateVizButtons();
+        updateVizLegend();
+        updateLegendContext();
+        renderBagCharts();
+      }
+
+      function deactivateMapVisualization(){
+        if (!activeMapVisualization){
+          updateVizButtons();
+          updateVizLegend();
+          updateLegendContext();
+          return;
+        }
+        activeMapVisualization = null;
+        restoreMapVisualization();
+        updateVizButtons();
+        updateVizLegend();
+        updateLegendContext();
+        renderBagCharts();
+      }
+
+      // Called at the end of every refreshBagView so map paint properties
+      // stay in sync with whatever data was just loaded for the new area
+      // or after a layer toggle. Auto-deactivates if the source layer is
+      // no longer on.
+      function postBagRefreshSync(){
+        if (activeMapVisualization){
+          if (!vizModeSourceIsActive(activeMapVisualization)){
+            deactivateMapVisualization();
+          } else {
+            refreshActiveMapVisualization();
+          }
+        }
+        updateVizButtons();
+        updateVizLegend();
+        updateLegendContext();
+      }
+
+      // ---------- Button / legend rendering ----------
+
+      function updateVizButtons(){
+        for (const mode of ['bouwjaar', 'gebruiksdoel', 'oppervlakte']){
+          const btn = document.getElementById(`bagVizBtn_${mode}`);
+          if (!btn) continue;
+          const active = activeMapVisualization === mode;
+          const enabled = vizModeIsAvailable(mode);
+          btn.classList.toggle('is-active', active);
+          btn.disabled = !enabled;
+          btn.textContent = active ? tr('vizBtnActive') : tr('vizBtnInactive');
+          btn.title = enabled ? '' : tr('vizBtnDisabledHint');
+          btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+        }
+      }
+
+      function vizLegendRowHtml(color, label){
+        return `<div class="legendVizRow"><span class="legendVizSwatch" style="background:${color}"></span><span>${escapeHtml(label)}</span></div>`;
+      }
+
+      function updateVizLegend(){
+        const sectionEl = document.getElementById('legendVizSection');
+        const titleEl = document.getElementById('legendVizTitle');
+        const rowsEl = document.getElementById('legendVizRows');
+        if (!(sectionEl && titleEl && rowsEl)) return;
+        if (!activeMapVisualization){
+          sectionEl.style.display = 'none';
+          titleEl.textContent = '';
+          rowsEl.innerHTML = '';
+          return;
+        }
+        let title = '';
+        let rows = '';
+        if (activeMapVisualization === 'bouwjaar'){
+          title = tr('vizLegendTitleBouwjaar');
+          rows =
+            vizLegendRowHtml(VIZ_PALETTE_BOUWJAAR.preBefore1900, '< 1900') +
+            vizLegendRowHtml(VIZ_PALETTE_BOUWJAAR.band1900_1944, '1900–1944') +
+            vizLegendRowHtml(VIZ_PALETTE_BOUWJAAR.band1945_1969, '1945–1969') +
+            vizLegendRowHtml(VIZ_PALETTE_BOUWJAAR.band1970_1989, '1970–1989') +
+            vizLegendRowHtml(VIZ_PALETTE_BOUWJAAR.band1990_2009, '1990–2009') +
+            vizLegendRowHtml(VIZ_PALETTE_BOUWJAAR.band2010Plus,  '2010+') +
+            vizLegendRowHtml(VIZ_PALETTE_BOUWJAAR.unknown,       tr('vizLegendUnknown'));
+        } else if (activeMapVisualization === 'gebruiksdoel'){
+          title = tr('vizLegendTitleGebruiksdoel');
+          rows =
+            vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.woonfunctie,            tr('gebruiksdoelWoonfunctie')) +
+            vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.winkelfunctie,          tr('gebruiksdoelWinkelfunctie')) +
+            vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.kantoorfunctie,         tr('gebruiksdoelKantoorfunctie')) +
+            vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.industriefunctie,       tr('gebruiksdoelIndustriefunctie')) +
+            vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.onderwijsfunctie,       tr('gebruiksdoelOnderwijsfunctie')) +
+            vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.gezondheidszorgfunctie, tr('gebruiksdoelGezondheidszorgfunctie')) +
+            vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.overige,                tr('vizLegendOverige')) +
+            vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.unknown,                tr('vizLegendUnknown'));
+        } else if (activeMapVisualization === 'oppervlakte'){
+          title = tr('vizLegendTitleOppervlakte');
+          rows =
+            vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_lt50,    '< 50 m²') +
+            vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_50_75,   '50–75 m²') +
+            vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_75_100,  '75–100 m²') +
+            vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_100_150, '100–150 m²') +
+            vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_150_250, '150–250 m²') +
+            vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_250plus, '250+ m²') +
+            vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.unknown,      tr('vizLegendUnknown'));
+          if (activeBagKeys().includes('pand')){
+            rows += vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.noData, tr('vizLegendNoData'));
+          }
+        }
+        titleEl.textContent = title;
+        rowsEl.innerHTML = rows;
+        sectionEl.style.display = 'block';
+      }
+
+      // ---------- Chart bar color helpers ----------
+
+      function bouwjaarBarColors(labels){
+        if (activeMapVisualization !== 'bouwjaar') return null;
+        return labels.map(label => {
+          if (label === '<1900') return VIZ_PALETTE_BOUWJAAR.preBefore1900;
+          const m = String(label).match(/^(\d{4})/);
+          if (!m) return VIZ_PALETTE_BOUWJAAR.preBefore1900;
+          const start = Number(m[1]);
+          if (start < 1945) return VIZ_PALETTE_BOUWJAAR.band1900_1944;
+          if (start < 1970) return VIZ_PALETTE_BOUWJAAR.band1945_1969;
+          if (start < 1990) return VIZ_PALETTE_BOUWJAAR.band1970_1989;
+          if (start < 2010) return VIZ_PALETTE_BOUWJAAR.band1990_2009;
+          return VIZ_PALETTE_BOUWJAAR.band2010Plus;
+        });
+      }
+
+      function gebruiksdoelBarColors(entries){
+        if (activeMapVisualization !== 'gebruiksdoel') return null;
+        return entries.map(e => VIZ_PALETTE_GEBRUIKSDOEL[e.key] || VIZ_PALETTE_GEBRUIKSDOEL.overige);
+      }
+
+      function oppervlakteBarColors(){
+        if (activeMapVisualization !== 'oppervlakte') return null;
+        return [
+          VIZ_PALETTE_OPPERVLAKTE.band_lt50,
+          VIZ_PALETTE_OPPERVLAKTE.band_50_75,
+          VIZ_PALETTE_OPPERVLAKTE.band_75_100,
+          VIZ_PALETTE_OPPERVLAKTE.band_100_150,
+          VIZ_PALETTE_OPPERVLAKTE.band_150_250,
+          VIZ_PALETTE_OPPERVLAKTE.band_250plus,
+        ];
+      }
+
+      // ===== end map visualization =====
+
       async function refreshBagView(){
         const activeKeys = activeBagKeys();
         const reqId = ++bagFeatureRequestId;
@@ -1692,6 +2083,7 @@
           updateBagLegend([], {}, false);
           updateDataSummaryCard();
           clearAllBagCharts();
+          postBagRefreshSync();
           return;
         }
 
@@ -1704,6 +2096,7 @@
           updateBagLegend([], {}, false);
           renderBagSummaryMessage(tr('bagSummaryNoSelection'));
           clearAllBagCharts();
+          postBagRefreshSync();
           return;
         }
 
@@ -1849,6 +2242,7 @@
         updateBagLegend(activeKeys, countsByKey, showMap);
         renderBagLayerSummary(rows, areaFeature, level, partialKeys, showMap, failedKeys.length ? retryFailedMessage(failedKeys) : '');
         renderBagCharts();
+        postBagRefreshSync();
       }
 
 
@@ -1956,7 +2350,8 @@
         if (legendBoundarySectionEl) legendBoundarySectionEl.style.display = (showNational || showProvince || showMunicipality || showWijk || showBuurt) ? 'block' : 'none';
         const bagVisible = !!legendBagRowEl && legendBagRowEl.style.display !== 'none';
         if (legendDataSectionEl) legendDataSectionEl.style.display = bagVisible ? 'block' : 'none';
-        if (legendEl) legendEl.style.display = (showNational || showProvince || showMunicipality || showWijk || showBuurt || bagVisible) ? 'block' : 'none';
+        const vizLegendVisible = !!activeMapVisualization;
+        if (legendEl) legendEl.style.display = (showNational || showProvince || showMunicipality || showWijk || showBuurt || bagVisible || vizLegendVisible) ? 'block' : 'none';
       }
 
       function updateInfoBox(){
@@ -2260,6 +2655,15 @@ function clearBelowProvince(){ state.gemeenteStatcode = ""; state.gmCode = ""; s
             refreshBagView().catch(err => console.warn("BAG refresh failed", err));
           });
         });
+        ['bouwjaar', 'gebruiksdoel', 'oppervlakte'].forEach(mode => {
+          const btn = document.getElementById(`bagVizBtn_${mode}`);
+          btn?.addEventListener('click', () => {
+            if (btn.disabled) return;
+            setActiveMapVisualization(mode);
+          });
+        });
+        updateVizButtons();
+        updateVizLegend();
         map.on("click", e => { const dataFeature = queryDataFeature(e.point); if (dataFeature){ openBagPopup(dataFeature, e.lngLat); return; } const buurt = featureUnderPointer(e.point, "cbs-buurt-hit"); if (buurt){ closeBagPopup(); return selectBuurtByFeature(buurt, true); } const wijk = featureUnderPointer(e.point, "cbs-wijk-hit"); if (wijk){ closeBagPopup(); return selectWijkByFeature(wijk, true); } const gemeente = featureUnderPointer(e.point, "cbs-gemeente-hit"); if (gemeente){ closeBagPopup(); return selectMunicipalityByFeature(gemeente, true); } const provincie = featureUnderPointer(e.point, "cbs-provincie-hit"); if (provincie){ closeBagPopup(); return selectProvinceByFeature(provincie, true); } closeBagPopup(); });
         syncBagAccordion(false);
         bagAccordionToggleEl?.addEventListener("click", toggleBagAccordion);

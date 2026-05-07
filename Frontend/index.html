@@ -224,6 +224,7 @@
               </div>
             </div>
             <div class="summaryNote" id="chartNoteBouwjaar" style="display:none;"></div>
+            <button type="button" class="bagChartVizBtn" id="bagVizBtn_bouwjaar" data-viz="bouwjaar" disabled>Toon op kaart</button>
           </div>
 
           <div class="bagChartSection" id="chartSectionGebruiksdoel" style="display:none;">
@@ -239,6 +240,7 @@
               </div>
             </div>
             <div class="summaryNote" id="chartNoteGebruiksdoel" style="display:none;"></div>
+            <button type="button" class="bagChartVizBtn" id="bagVizBtn_gebruiksdoel" data-viz="gebruiksdoel" disabled>Toon op kaart</button>
           </div>
 
           <div class="bagChartSection" id="chartSectionOppervlakte" style="display:none;">
@@ -255,6 +257,7 @@
               </div>
             </div>
             <div class="summaryNote" id="chartNoteOppervlakte" style="display:none;"></div>
+            <button type="button" class="bagChartVizBtn" id="bagVizBtn_oppervlakte" data-viz="oppervlakte" disabled>Toon op kaart</button>
           </div>
 
           <div class="summaryNote" id="bagChartSourceLine" style="display:none;"></div>
@@ -273,6 +276,10 @@
           <div class="legendSection" id="legendDataSection" style="display:none;">
             <div class="legendSectionTitle" id="legendDataGroup">Gegevenslagen</div>
             <div class="legendRow" id="legendBagRow" style="display:none;"><span class="swatchPolygon"></span><span id="legendBag">BAG objecten</span></div>
+          </div>
+          <div class="legendSection" id="legendVizSection" style="display:none;">
+            <div class="legendSectionTitle" id="legendVizTitle"></div>
+            <div class="legendVizRows" id="legendVizRows"></div>
           </div>
         </div>
       </section>
