@@ -306,69 +306,6 @@ async def load_buurten_for_municipality(municipality_gmcode: str) -> Dict[str, A
     return result
 
 
-async def load_wijken() -> Dict[str, Any]:
-    cache_key = "admin_wijken_v1"
-    cached = cache_get(cache_key)
-    if isinstance(cached, dict):
-        return cached
-
-    gemeenten = await load_municipalities()
-    gm_to_province = municipality_to_province_map_from_features(gemeenten)
-
-    wijk_raw = await fetch_all_features(WIJK_URL, ttl_seconds=24 * 3600)
-    wijken = preprocess_features(wijk_raw, "wijk")
-
-    for feature in wijken["features"]:
-        gmcode = str(feature.get("properties", {}).get("_gmcode", "")).strip()
-        gm_statcode = f"GM{gmcode}" if gmcode else ""
-        feature["properties"]["_pvstatcode"] = gm_to_province.get(gm_statcode, "")
-
-    cache_set(cache_key, wijken, 24 * 3600)
-    return wijken
-
-
-async def load_buurten() -> Dict[str, Any]:
-    cache_key = "admin_buurten_v1"
-    cached = cache_get(cache_key)
-    if isinstance(cached, dict):
-        return cached
-
-    gemeenten = await load_municipalities()
-    gm_to_province = municipality_to_province_map_from_features(gemeenten)
-
-    buurt_raw = await fetch_all_features(BUURT_URL, ttl_seconds=24 * 3600)
-    buurten = preprocess_features(buurt_raw, "buurt")
-
-    for feature in buurten["features"]:
-        gmcode = str(feature.get("properties", {}).get("_gmcode", "")).strip()
-        gm_statcode = f"GM{gmcode}" if gmcode else ""
-        feature["properties"]["_pvstatcode"] = gm_to_province.get(gm_statcode, "")
-
-    cache_set(cache_key, buurten, 24 * 3600)
-    return buurten
-
-
-async def load_admin_data() -> Dict[str, Any]:
-    cache_key = "admin_data_v3"
-    cached = cache_get(cache_key)
-    if isinstance(cached, dict):
-        return cached
-
-    provincies = await load_provinces()
-    gemeenten = await load_municipalities()
-    wijken = await load_wijken()
-    buurten = await load_buurten()
-
-    result = {
-        "provincies": provincies,
-        "gemeenten": gemeenten,
-        "wijken": wijken,
-        "buurten": buurten,
-    }
-    cache_set(cache_key, result, 24 * 3600)
-    return result
-
-
 async def get_area_feature(level: str, statcode: str) -> Dict[str, Any]:
     level = (level or "").strip().lower()
     statcode = (statcode or "").strip().upper()

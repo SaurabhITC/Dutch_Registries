@@ -1,0 +1,23 @@
+﻿# Default: auto-detect text files, normalize to LF in the repo
+* text=auto eol=lf
+
+# Explicit text files
+*.py text eol=lf
+*.js text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.txt text eol=lf
+.gitignore text eol=lf
+.dockerignore text eol=lf
+Dockerfile text eol=lf
+
+# Binary files (don't normalize)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.bmp binary
+*.zip binary
