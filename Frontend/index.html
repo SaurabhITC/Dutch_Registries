@@ -200,23 +200,60 @@
             <span id="bagSummaryTitle">Gegevenssamenvatting</span>
             <span class="badge" id="bagSummaryBadge">gegevens</span>
           </div>
-          <div class="hint" id="bagSummaryBody">Kies een gebied en schakel BAG in.</div>
+          <div class="hint" id="bagSummaryBody" aria-live="polite">Kies een gebied en schakel BAG in.</div>
 
           <div class="bagChartSection" id="chartSectionBouwjaar" style="display:none;">
             <div class="bagChartHeading" id="chartTitleBouwjaar">Bouwjaar</div>
-            <div class="bagChartCanvasWrap"><canvas id="chartBouwjaar"></canvas></div>
+            <div class="bagChartCanvasWrap">
+              <canvas id="chartBouwjaar"></canvas>
+              <div class="bagChartSkeleton" id="chartSkeletonBouwjaar" aria-hidden="true" style="display:none;">
+                <span class="bagChartSkeletonBar" style="height:30%"></span>
+                <span class="bagChartSkeletonBar" style="height:60%"></span>
+                <span class="bagChartSkeletonBar" style="height:90%"></span>
+                <span class="bagChartSkeletonBar" style="height:70%"></span>
+                <span class="bagChartSkeletonBar" style="height:40%"></span>
+                <span class="bagChartSkeletonBar" style="height:80%"></span>
+                <span class="bagChartSkeletonBar" style="height:50%"></span>
+                <span class="bagChartSkeletonBar" style="height:30%"></span>
+                <span class="bagChartSkeletonBar" style="height:60%"></span>
+                <span class="bagChartSkeletonBar" style="height:50%"></span>
+                <span class="bagChartSkeletonBar" style="height:40%"></span>
+                <span class="bagChartSkeletonBar" style="height:70%"></span>
+                <span class="bagChartSkeletonBar" style="height:30%"></span>
+                <span class="bagChartSkeletonBar" style="height:20%"></span>
+              </div>
+            </div>
             <div class="summaryNote" id="chartNoteBouwjaar" style="display:none;"></div>
           </div>
 
           <div class="bagChartSection" id="chartSectionGebruiksdoel" style="display:none;">
             <div class="bagChartHeading" id="chartTitleGebruiksdoel">Gebruiksdoel</div>
-            <div class="bagChartCanvasWrap"><canvas id="chartGebruiksdoel"></canvas></div>
+            <div class="bagChartCanvasWrap">
+              <canvas id="chartGebruiksdoel"></canvas>
+              <div class="bagChartSkeleton is-horizontal" id="chartSkeletonGebruiksdoel" aria-hidden="true" style="display:none;">
+                <span class="bagChartSkeletonBar" style="width:80%"></span>
+                <span class="bagChartSkeletonBar" style="width:65%"></span>
+                <span class="bagChartSkeletonBar" style="width:50%"></span>
+                <span class="bagChartSkeletonBar" style="width:35%"></span>
+                <span class="bagChartSkeletonBar" style="width:20%"></span>
+              </div>
+            </div>
             <div class="summaryNote" id="chartNoteGebruiksdoel" style="display:none;"></div>
           </div>
 
           <div class="bagChartSection" id="chartSectionOppervlakte" style="display:none;">
             <div class="bagChartHeading" id="chartTitleOppervlakte">Oppervlakte verblijfsobjecten</div>
-            <div class="bagChartCanvasWrap"><canvas id="chartOppervlakte"></canvas></div>
+            <div class="bagChartCanvasWrap">
+              <canvas id="chartOppervlakte"></canvas>
+              <div class="bagChartSkeleton" id="chartSkeletonOppervlakte" aria-hidden="true" style="display:none;">
+                <span class="bagChartSkeletonBar" style="height:40%"></span>
+                <span class="bagChartSkeletonBar" style="height:70%"></span>
+                <span class="bagChartSkeletonBar" style="height:60%"></span>
+                <span class="bagChartSkeletonBar" style="height:45%"></span>
+                <span class="bagChartSkeletonBar" style="height:25%"></span>
+                <span class="bagChartSkeletonBar" style="height:15%"></span>
+              </div>
+            </div>
             <div class="summaryNote" id="chartNoteOppervlakte" style="display:none;"></div>
           </div>
 

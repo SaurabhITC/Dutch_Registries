@@ -777,6 +777,40 @@
       border-top:1px solid var(--stroke);
     }
 
+    .bagChartSkeleton{
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:4px;
+      padding:8px 4px 4px;
+      pointer-events:none;
+    }
+    .bagChartSkeleton.is-horizontal{
+      flex-direction:column;
+      align-items:flex-start;
+      justify-content:space-around;
+      gap:10px;
+      padding:10px 8px;
+    }
+    .bagChartSkeletonBar{
+      background: rgba(15,23,42,0.16);
+      border-radius:3px;
+      animation: bagSkeletonPulse 1.5s ease-in-out infinite;
+    }
+    .bagChartSkeleton:not(.is-horizontal) .bagChartSkeletonBar{
+      flex:1 1 0;
+    }
+    .bagChartSkeleton.is-horizontal .bagChartSkeletonBar{
+      height:14px;
+      flex:0 0 14px;
+    }
+    @keyframes bagSkeletonPulse{
+      0%, 100% { opacity: 0.4; }
+      50%      { opacity: 0.8; }
+    }
+
     @media (max-width: 980px){
       #bagSummaryCard{
         top:92px;

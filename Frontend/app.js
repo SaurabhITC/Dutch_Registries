@@ -210,6 +210,8 @@
           summaryRetryWaitPrefix: "Nieuwe poging over ",
           summaryRetryWaitSuffix: " sec.",
           summaryRetryFailedPrefix: "Automatisch opnieuw proberen is mislukt voor ",
+          bagSummaryEmptyState: "Selecteer een gebied om gegevens te zien.",
+          bagSummaryLoadingStatic: "Gegevens laden, even geduld…",
           chartTitleBouwjaar: "Bouwjaar",
           chartTitleGebruiksdoel: "Gebruiksdoel",
           chartTitleOppervlakte: "Oppervlakte verblijfsobjecten",
@@ -337,6 +339,8 @@
           bagSummaryOnlySummaryAtLevelSuffix: " level only the summary is shown.",
           summaryNoObjectsLoaded: "No objects loaded.",
           partialLoadNotePrefix: "Note: partially loaded for ",
+          bagSummaryEmptyState: "Select an area to see data.",
+          bagSummaryLoadingStatic: "Loading data, please wait…",
           chartTitleBouwjaar: "Year of construction",
           chartTitleGebruiksdoel: "Function / use",
           chartTitleOppervlakte: "Surface area of residential units",
@@ -635,6 +639,15 @@
         if (!(bagSummaryCardEl && bagSummaryBodyEl)) return;
         const sections = [bagSummarySectionHtml].filter(Boolean);
         if (!sections.length){
+          const areaSelected = !!selectedAreaFeature();
+          if (!areaSelected){
+            // Empty state — friendly message, no skeletons.
+            bagSummaryCardEl.style.display = 'block';
+            delete bagSummaryBodyEl.dataset.dynamic;
+            bagSummaryBodyEl.innerHTML = `<div class="summaryNote">${escapeHtml(tr('bagSummaryEmptyState'))}</div>`;
+            return;
+          }
+          // Area selected but no BAG layers active — keep card hidden.
           bagSummaryCardEl.style.display = 'none';
           delete bagSummaryBodyEl.dataset.dynamic;
           bagSummaryBodyEl.textContent = tr('bagSummaryChooseArea');
@@ -698,6 +711,7 @@
       const state = { provinceStatcode:"", gemeenteStatcode:"", gmCode:"", wijkStatcode:"", buurtStatcode:"", showGemeente:true, showWijk:true, showBuurt:true };
       const emptyFilter = ["==", ["get", "_statcode"], "__none__"];
       applyLanguageText();
+      updateDataSummaryCard();
 
       function municipalityCodeFromStatcode(statcode){ const m = String(statcode || "").trim().toUpperCase().match(/^(?:GM|WK|BU)(\d{4})/); return m ? m[1] : ""; }
       function normalizeGmCode(v){ const s = String(v ?? "").trim(); return !s ? "" : (s.startsWith("-") ? s : s.padStart(4, "0")); }
@@ -1043,7 +1057,7 @@
               <div class="summaryMetricLabel">${escapeHtml(tr('bagSummaryActiveBagLayers'))}</div>
               <div class="summarySkeletonStack">${rows}</div>
             </div>
-            <div class="summaryNote">${escapeHtml(statusMessage || (showMap ? tr('bagSummaryMapAndSummaryLoading') : tr('bagSummaryOnlyLoading')))}</div>
+            <div class="summaryNote">${escapeHtml(statusMessage || tr('bagSummaryLoadingStatic'))}</div>
           </div>
         `);
         updateDataSummaryCard();
@@ -1054,6 +1068,14 @@
 
         const areaLabel = `${prettyName(areaFeature.properties)} (${areaFeature.properties?._statcode || ''})`;
         const rowHtml = rows.map(row => {
+          if (row.skeleton){
+            return `
+            <div class="summarySkeletonRow">
+              <span>${escapeHtml(row.label)}</span>
+              <span class="summarySkeletonBar" style="width:52px;"></span>
+            </div>
+          `;
+          }
           const valueText = row.error ? tr('summaryLoadFailedShort') : formatNumber(row.count);
           return `
           <div class="summaryRow">
@@ -1234,6 +1256,27 @@
         }
       }
 
+      const CHART_SKELETON_IDS = {
+        chartBouwjaar: 'chartSkeletonBouwjaar',
+        chartGebruiksdoel: 'chartSkeletonGebruiksdoel',
+        chartOppervlakte: 'chartSkeletonOppervlakte',
+      };
+
+      function showChartSkeleton(canvasId){
+        destroyBagChart(canvasId);
+        const canvas = document.getElementById(canvasId);
+        if (canvas) canvas.style.visibility = 'hidden';
+        const skel = document.getElementById(CHART_SKELETON_IDS[canvasId]);
+        if (skel) skel.style.display = '';
+      }
+
+      function hideChartSkeleton(canvasId){
+        const canvas = document.getElementById(canvasId);
+        if (canvas) canvas.style.visibility = '';
+        const skel = document.getElementById(CHART_SKELETON_IDS[canvasId]);
+        if (skel) skel.style.display = 'none';
+      }
+
       function aggregateBouwjaar(features){
         const counts = BOUWJAAR_BUCKETS.map(() => 0);
         for (const f of features){
@@ -1364,6 +1407,7 @@
         const noteId = 'chartNoteBouwjaar';
         setChartHeading(headingId, 'chartTitleBouwjaar');
         destroyBagChart(canvasId);
+        hideChartSkeleton(canvasId);
         if (!features || features.length < MIN_FEATURES_FOR_CHART){
           setChartSectionVisible(sectionId, false);
           return false;
@@ -1404,6 +1448,7 @@
         const noteId = 'chartNoteGebruiksdoel';
         setChartHeading(headingId, 'chartTitleGebruiksdoel');
         destroyBagChart(canvasId);
+        hideChartSkeleton(canvasId);
         if (!features || features.length < MIN_FEATURES_FOR_CHART){
           setChartSectionVisible(sectionId, false);
           return false;
@@ -1466,6 +1511,7 @@
         const noteId = 'chartNoteOppervlakte';
         setChartHeading(headingId, 'chartTitleOppervlakte');
         destroyBagChart(canvasId);
+        hideChartSkeleton(canvasId);
         if (!features || features.length < MIN_FEATURES_FOR_CHART){
           setChartSectionVisible(sectionId, false);
           return false;
@@ -1510,6 +1556,14 @@
         setChartSectionVisible(sectionId, false);
       }
 
+      function showChartSkeletonState(sectionId, canvasId, headingId, headingKey, noteId){
+        setChartHeading(headingId, headingKey);
+        setChartSectionVisible(sectionId, true);
+        setChartCanvasVisible(canvasId, true);
+        setChartNote(noteId, '');
+        showChartSkeleton(canvasId);
+      }
+
       function getCachedBagFeatures(key){
         const level = currentBagAreaLevel();
         if (level !== 'wijk' && level !== 'buurt') return null;
@@ -1521,7 +1575,7 @@
         return fc?.features || null;
       }
 
-      function renderBagCharts(){
+      function renderBagCharts(loadingKeys = new Set()){
         const sourceLineEl = document.getElementById('bagChartSourceLine');
         const activeKeys = activeBagKeys();
         const pandActive = activeKeys.includes('pand');
@@ -1542,6 +1596,8 @@
         // Chart 1: bouwjaar from pand
         if (!pandActive){
           hideChartSection('chartSectionBouwjaar', 'chartBouwjaar');
+        } else if (loadingKeys.has('pand')){
+          showChartSkeletonState('chartSectionBouwjaar', 'chartBouwjaar', 'chartTitleBouwjaar', 'chartTitleBouwjaar', 'chartNoteBouwjaar');
         } else if (!featureLevel){
           showChartUnavailable('chartSectionBouwjaar', 'chartBouwjaar', 'chartTitleBouwjaar', 'chartTitleBouwjaar', 'chartNoteBouwjaar');
         } else {
@@ -1550,8 +1606,13 @@
         }
 
         // Chart 2: gebruiksdoel from VO (preferred) or pand fallback
+        const chart2SourceLoading = voActive
+          ? loadingKeys.has('verblijfsobject')
+          : loadingKeys.has('pand');
         if (!pandActive && !voActive){
           hideChartSection('chartSectionGebruiksdoel', 'chartGebruiksdoel');
+        } else if (chart2SourceLoading){
+          showChartSkeletonState('chartSectionGebruiksdoel', 'chartGebruiksdoel', 'chartTitleGebruiksdoel', 'chartTitleGebruiksdoel', 'chartNoteGebruiksdoel');
         } else if (!featureLevel){
           showChartUnavailable('chartSectionGebruiksdoel', 'chartGebruiksdoel', 'chartTitleGebruiksdoel', 'chartTitleGebruiksdoel', 'chartNoteGebruiksdoel');
         } else {
@@ -1564,6 +1625,8 @@
         // Chart 3: oppervlakte from VO
         if (!voActive){
           hideChartSection('chartSectionOppervlakte', 'chartOppervlakte');
+        } else if (loadingKeys.has('verblijfsobject')){
+          showChartSkeletonState('chartSectionOppervlakte', 'chartOppervlakte', 'chartTitleOppervlakte', 'chartTitleOppervlakte', 'chartNoteOppervlakte');
         } else if (!featureLevel){
           showChartUnavailable('chartSectionOppervlakte', 'chartOppervlakte', 'chartTitleOppervlakte', 'chartTitleOppervlakte', 'chartNoteOppervlakte');
         } else {
@@ -1590,6 +1653,28 @@
         hideChartSection('chartSectionBouwjaar', 'chartBouwjaar');
         hideChartSection('chartSectionGebruiksdoel', 'chartGebruiksdoel');
         hideChartSection('chartSectionOppervlakte', 'chartOppervlakte');
+        const sourceLineEl = document.getElementById('bagChartSourceLine');
+        if (sourceLineEl) sourceLineEl.style.display = 'none';
+      }
+
+      // Single source of truth: wipe the data summary panel and replace
+      // every section with a skeleton placeholder. Called on both area
+      // change and layer toggle so stale data never lingers on screen.
+      function clearBagSummaryPanel(){
+        const activeKeys = activeBagKeys();
+        const level = currentBagAreaLevel();
+        const showMap = level === 'wijk' || level === 'buurt';
+
+        if (activeKeys.length){
+          renderBagLayerSummarySkeleton(level, activeKeys, showMap);
+        } else {
+          bagSummarySectionHtml = '';
+          updateDataSummaryCard();
+        }
+
+        // Chart skeletons for every active chart-eligible layer.
+        renderBagCharts(new Set(activeKeys));
+
         const sourceLineEl = document.getElementById('bagChartSourceLine');
         if (sourceLineEl) sourceLineEl.style.display = 'none';
       }
@@ -1622,7 +1707,41 @@
           return;
         }
 
-        renderBagLayerSummarySkeleton(level, activeKeys, showMap);
+        // Synchronous, single-paint reset: stale data is replaced with the
+        // skeleton state before any fetch begins. Then immediately overlay
+        // any cached values so previously-loaded layers stay visible.
+        clearBagSummaryPanel();
+
+        const initialRows = [];
+        const loadingKeys = new Set();
+        for (const key of activeKeys){
+          const label = collectionLabel(BAG_COLLECTIONS[key]);
+          if (showMap){
+            const cacheKey = bagCacheKey(key, level, areaFeature.properties?._statcode || '');
+            const cached = bagFeatureCache.get(cacheKey);
+            if (cached){
+              const cachedCount = Number.isFinite(cached._summaryCount) ? cached._summaryCount : (cached.features || []).length;
+              initialRows.push({ key, label, count: cachedCount });
+            } else {
+              initialRows.push({ key, label, skeleton: true });
+              loadingKeys.add(key);
+            }
+          } else if (key === 'pand'){
+            const summaryCacheKey = `${bagCacheKey(key, level, areaFeature.properties?._statcode || '')}:summary`;
+            const cached = bagFeatureCache.get(summaryCacheKey);
+            if (cached && Number.isFinite(cached._summaryCount)){
+              initialRows.push({ key, label, count: cached._summaryCount });
+            } else {
+              initialRows.push({ key, label, skeleton: true });
+              loadingKeys.add(key);
+            }
+          } else {
+            initialRows.push({ key, label, count: '—' });
+          }
+        }
+
+        renderBagLayerSummary(initialRows, areaFeature, level, [], showMap, loadingKeys.size ? tr('bagSummaryLoadingStatic') : '');
+        renderBagCharts(loadingKeys);
 
         const rows = [];
         const countsByKey = {};
@@ -1651,10 +1770,8 @@
               if (!summaryEntry){
                 const attemptResult = await loadWithAutoRetry({
                   loadFn: () => loadBagSummaryForArea(key, areaFeature, level),
-                  onRetry: ({ attempt, totalAttempts, delayMs, error }) => {
+                  onRetry: ({ error }) => {
                     console.warn(`BAG summary load failed for ${key}; retrying`, error);
-                    if (reqId !== bagFeatureRequestId) return;
-                    renderBagLayerSummarySkeleton(level, activeKeys, showMap, retryAttemptMessage(label, attempt, totalAttempts, delayMs));
                   }
                 });
 
@@ -1695,10 +1812,8 @@
 
             const attemptResult = await loadWithAutoRetry({
               loadFn: () => loadBagFeaturesForArea(key, areaFeature, level),
-              onRetry: ({ attempt, totalAttempts, delayMs, error }) => {
+              onRetry: ({ error }) => {
                 console.warn(`BAG load failed for ${key}; retrying`, error);
-                if (reqId !== bagFeatureRequestId) return;
-                renderBagLayerSummarySkeleton(level, activeKeys, showMap, retryAttemptMessage(label, attempt, totalAttempts, delayMs));
               }
             });
 
