@@ -211,6 +211,7 @@
           summaryRetryWaitSuffix: " sec.",
           summaryRetryFailedPrefix: "Automatisch opnieuw proberen is mislukt voor ",
           bagSummaryEmptyState: "Selecteer een gebied om gegevens te zien.",
+          bagSummaryAvailableAtWijkBuurt: "Beschikbaar op wijk-/buurtniveau",
           bagSummaryLoadingStatic: "Gegevens laden, even geduld…",
           vizBtnInactive: "Toon op kaart",
           vizBtnActive: "Wordt op kaart getoond - klik om te stoppen",
@@ -349,6 +350,7 @@
           summaryNoObjectsLoaded: "No objects loaded.",
           partialLoadNotePrefix: "Note: partially loaded for ",
           bagSummaryEmptyState: "Select an area to see data.",
+          bagSummaryAvailableAtWijkBuurt: "Available at wijk/buurt level",
           bagSummaryLoadingStatic: "Loading data, please wait…",
           vizBtnInactive: "Visualize on map",
           vizBtnActive: "Showing on map - click to stop",
@@ -662,22 +664,20 @@
 
       function updateDataSummaryCard(){
         if (!(bagSummaryCardEl && bagSummaryBodyEl)) return;
+
+        // Panel is visible iff (any administrative area is selected) AND
+        // (any BAG layer is ticked). Otherwise it is hidden entirely so
+        // the map fills the full available width. No empty-state message
+        // is rendered inside the panel.
+        const anyAreaSelected = !!(state.provinceStatcode || state.gemeenteStatcode || state.wijkStatcode || state.buurtStatcode);
+        const anyBagLayerActive = activeBagKeys().length > 0;
         const sections = [bagSummarySectionHtml].filter(Boolean);
-        if (!sections.length){
-          const areaSelected = !!selectedAreaFeature();
-          if (!areaSelected){
-            // Empty state - friendly message, no skeletons.
-            bagSummaryCardEl.style.display = 'block';
-            delete bagSummaryBodyEl.dataset.dynamic;
-            bagSummaryBodyEl.innerHTML = `<div class="summaryNote">${escapeHtml(tr('bagSummaryEmptyState'))}</div>`;
-            return;
-          }
-          // Area selected but no BAG layers active - keep card hidden.
+        if (!anyAreaSelected || !anyBagLayerActive || !sections.length){
           bagSummaryCardEl.style.display = 'none';
           delete bagSummaryBodyEl.dataset.dynamic;
-          bagSummaryBodyEl.textContent = tr('bagSummaryChooseArea');
           return;
         }
+
         bagSummaryCardEl.style.display = 'block';
         bagSummaryBodyEl.dataset.dynamic = '1';
         bagSummaryBodyEl.innerHTML = sections.join('<div style="height:1px;background:rgba(15,23,42,0.08);margin:12px 0;"></div>');
@@ -1101,6 +1101,20 @@
             </div>
           `;
           }
+          if (row.placeholder){
+            // Backend has no count for this BAG type at the current
+            // (province/municipality) level yet. Render the dash plus a
+            // muted hint so the user knows where the data lives.
+            return `
+            <div class="summaryRow">
+              <span>${escapeHtml(row.label)}</span>
+              <span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
+                <strong>-</strong>
+                <span class="summaryNote" style="margin:0;">${escapeHtml(tr('bagSummaryAvailableAtWijkBuurt'))}</span>
+              </span>
+            </div>
+          `;
+          }
           const valueText = row.error ? tr('summaryLoadFailedShort') : formatNumber(row.count);
           return `
           <div class="summaryRow">
@@ -1190,17 +1204,30 @@
       async function loadBagSummaryForArea(key, areaFeature, level){
         const cfg = BAG_COLLECTIONS[key];
         const statcode = String(areaFeature?.properties?._statcode || '').trim();
-        if (!cfg || !statcode || !level) return { count: 0 };
+        if (!cfg || !statcode || !level) return { count: null };
 
-        if (key === 'pand'){
-          const params = new URLSearchParams({ level, statcode });
-          const summary = await fetchBackendJson(`/api/bag/pand/summary?${params.toString()}`, 60000);
-          return {
-            count: Number.isFinite(summary?.count) ? summary.count : 0
-          };
+        // Optimistic per-type request. The backend currently only exposes
+        // /api/bag/pand/summary; other types return 404 today and will
+        // start returning real counts when the summary store is extended.
+        // 404 → null (caller renders the "Available at wijk/buurt level"
+        // placeholder). 5xx and other transient errors are thrown so the
+        // existing retry/skeleton path takes over.
+        const params = new URLSearchParams({ level, statcode });
+        const url = `${BACKEND_BASE_URL}/api/bag/${encodeURIComponent(key)}/summary?${params.toString()}`;
+        let response;
+        try {
+          response = await fetchWithTimeout(url, 60000);
+        } catch (err) {
+          throw new Error(`Backend request failed: ${url} (network)`);
         }
-
-        return { count: null };
+        if (response.status === 404){
+          return { count: null };
+        }
+        if (!response.ok){
+          throw new Error(`Backend request failed: ${url} (${response.status})`);
+        }
+        const summary = await response.json();
+        return { count: Number.isFinite(summary?.count) ? summary.count : null };
       }
 
       function getCurrentBagAreaFeature(){ return selectedAreaFeature(); }
@@ -1627,7 +1654,7 @@
         } else if (loadingKeys.has('pand')){
           showChartSkeletonState('chartSectionBouwjaar', 'chartBouwjaar', 'chartTitleBouwjaar', 'chartTitleBouwjaar', 'chartNoteBouwjaar');
         } else if (!featureLevel){
-          showChartUnavailable('chartSectionBouwjaar', 'chartBouwjaar', 'chartTitleBouwjaar', 'chartTitleBouwjaar', 'chartNoteBouwjaar');
+          hideChartSection('chartSectionBouwjaar', 'chartBouwjaar');
         } else {
           const pandFeatures = getCachedBagFeatures('pand') || [];
           renderBouwjaarChart(pandFeatures);
@@ -1642,7 +1669,7 @@
         } else if (chart2SourceLoading){
           showChartSkeletonState('chartSectionGebruiksdoel', 'chartGebruiksdoel', 'chartTitleGebruiksdoel', 'chartTitleGebruiksdoel', 'chartNoteGebruiksdoel');
         } else if (!featureLevel){
-          showChartUnavailable('chartSectionGebruiksdoel', 'chartGebruiksdoel', 'chartTitleGebruiksdoel', 'chartTitleGebruiksdoel', 'chartNoteGebruiksdoel');
+          hideChartSection('chartSectionGebruiksdoel', 'chartGebruiksdoel');
         } else {
           const sourceFeatures = voActive
             ? (getCachedBagFeatures('verblijfsobject') || [])
@@ -1656,7 +1683,7 @@
         } else if (loadingKeys.has('verblijfsobject')){
           showChartSkeletonState('chartSectionOppervlakte', 'chartOppervlakte', 'chartTitleOppervlakte', 'chartTitleOppervlakte', 'chartNoteOppervlakte');
         } else if (!featureLevel){
-          showChartUnavailable('chartSectionOppervlakte', 'chartOppervlakte', 'chartTitleOppervlakte', 'chartTitleOppervlakte', 'chartNoteOppervlakte');
+          hideChartSection('chartSectionOppervlakte', 'chartOppervlakte');
         } else {
           const voFeatures = getCachedBagFeatures('verblijfsobject') || [];
           renderOppervlakteChart(voFeatures);
@@ -2119,17 +2146,24 @@
               initialRows.push({ key, label, skeleton: true });
               loadingKeys.add(key);
             }
-          } else if (key === 'pand'){
+          } else {
+            // Non-feature level: every active BAG type tries the per-type
+            // summary cache. Cached number → render count; cached null
+            // (backend has no summary for this type yet) → render the
+            // "Available at wijk/buurt level" placeholder; not cached
+            // yet → skeleton until the async loop populates the cache.
             const summaryCacheKey = `${bagCacheKey(key, level, areaFeature.properties?._statcode || '')}:summary`;
             const cached = bagFeatureCache.get(summaryCacheKey);
-            if (cached && Number.isFinite(cached._summaryCount)){
-              initialRows.push({ key, label, count: cached._summaryCount });
+            if (cached){
+              if (Number.isFinite(cached._summaryCount)){
+                initialRows.push({ key, label, count: cached._summaryCount });
+              } else {
+                initialRows.push({ key, label, placeholder: true });
+              }
             } else {
               initialRows.push({ key, label, skeleton: true });
               loadingKeys.add(key);
             }
-          } else {
-            initialRows.push({ key, label, count: '-' });
           }
         }
 
@@ -2156,42 +2190,46 @@
             setBagKeyData(key, { type:'FeatureCollection', features: [] });
             setBagKeyVisibility(key, false);
 
-            if (key === 'pand'){
-              const cacheKey = `${bagCacheKey(key, level, areaFeature.properties?._statcode || '')}:summary`;
-              let summaryEntry = bagFeatureCache.get(cacheKey);
+            // Every active BAG type attempts the per-type summary endpoint.
+            // loadBagSummaryForArea returns {count:null} for 404 ("not yet
+            // supported"), so result.ok is true but _summaryCount stays null
+            // and the row falls through to the placeholder branch below.
+            const cacheKey = `${bagCacheKey(key, level, areaFeature.properties?._statcode || '')}:summary`;
+            let summaryEntry = bagFeatureCache.get(cacheKey);
 
-              if (!summaryEntry){
-                const attemptResult = await loadWithAutoRetry({
-                  loadFn: () => loadBagSummaryForArea(key, areaFeature, level),
-                  onRetry: ({ error }) => {
-                    console.warn(`BAG summary load failed for ${key}; retrying`, error);
-                  }
-                });
-
-                if (reqId !== bagFeatureRequestId) return;
-
-                if (attemptResult.ok){
-                  summaryEntry = {
-                    type:'FeatureCollection',
-                    features: [],
-                    _summaryCount: attemptResult.data?.count
-                  };
-                  bagFeatureCache.set(cacheKey, summaryEntry);
-                } else {
-                  console.warn(`BAG summary load failed for ${key}`, attemptResult.error);
-                  failedKeys.push(label);
-                  rows.push({ label, error: true });
-                  countsByKey[key] = 0;
-                  continue;
+            if (!summaryEntry){
+              const attemptResult = await loadWithAutoRetry({
+                loadFn: () => loadBagSummaryForArea(key, areaFeature, level),
+                onRetry: ({ error }) => {
+                  console.warn(`BAG summary load failed for ${key}; retrying`, error);
                 }
-              }
+              });
 
-              const count = Number.isFinite(summaryEntry?._summaryCount) ? summaryEntry._summaryCount : 0;
+              if (reqId !== bagFeatureRequestId) return;
+
+              if (attemptResult.ok){
+                summaryEntry = {
+                  type:'FeatureCollection',
+                  features: [],
+                  _summaryCount: attemptResult.data?.count
+                };
+                bagFeatureCache.set(cacheKey, summaryEntry);
+              } else {
+                console.warn(`BAG summary load failed for ${key}`, attemptResult.error);
+                failedKeys.push(label);
+                rows.push({ label, error: true });
+                countsByKey[key] = 0;
+                continue;
+              }
+            }
+
+            const count = summaryEntry?._summaryCount;
+            if (Number.isFinite(count)){
               countsByKey[key] = count;
               rows.push({ label, count });
             } else {
               countsByKey[key] = 0;
-              rows.push({ label, count: '-' });
+              rows.push({ label, placeholder: true });
             }
             continue;
           }
