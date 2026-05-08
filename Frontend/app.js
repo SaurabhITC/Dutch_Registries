@@ -2806,9 +2806,12 @@ function clearBelowProvince(){ state.gemeenteStatcode = ""; state.gmCode = ""; s
             }
           });
         })();
-        toggleGemeenteLayerEl?.addEventListener("click", ()=> setBoundaryLayerVisible('gemeente', !boundaryLayerVisible('gemeente')));
-        toggleWijkLayerEl?.addEventListener("click", ()=> setBoundaryLayerVisible('wijk', !boundaryLayerVisible('wijk')));
-        toggleBuurtLayerEl?.addEventListener("click", ()=> setBoundaryLayerVisible('buurt', !boundaryLayerVisible('buurt')));
+        toggleGemeenteLayerEl?.addEventListener("click", (e)=> { e.stopPropagation(); setBoundaryLayerVisible('gemeente', !boundaryLayerVisible('gemeente')); });
+        toggleWijkLayerEl?.addEventListener("click", (e)=> { e.stopPropagation(); setBoundaryLayerVisible('wijk', !boundaryLayerVisible('wijk')); });
+        toggleBuurtLayerEl?.addEventListener("click", (e)=> { e.stopPropagation(); setBoundaryLayerVisible('buurt', !boundaryLayerVisible('buurt')); });
+        for (const btn of [toggleGemeenteLayerEl, toggleWijkLayerEl, toggleBuurtLayerEl]){
+          btn?.addEventListener("mousedown", (e)=> e.stopPropagation());
+        }
         Object.values(bagToggleEls).forEach(el => {
           el?.addEventListener("change", () => {
             refreshBagView().catch(err => console.warn("BAG refresh failed", err));
