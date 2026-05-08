@@ -227,6 +227,8 @@
           chartTitleBouwjaar: "Bouwjaar",
           chartTitleGebruiksdoel: "Gebruiksdoel",
           chartTitleOppervlakte: "Oppervlakte verblijfsobjecten",
+          chartExpand: "Diagram vergroten",
+          chartModalClose: "Sluiten",
           chartAxisCount: "Aantal",
           chartNoteSelectWijkBuurt: "Selecteer een wijk of buurt om grafieken te zien.",
           chartSourceLine: "Bron: Kadaster BAG OGC API v2 + CBS Wijk- en Buurtkaart",
@@ -366,6 +368,8 @@
           chartTitleBouwjaar: "Year of construction",
           chartTitleGebruiksdoel: "Function / use",
           chartTitleOppervlakte: "Surface area of residential units",
+          chartExpand: "Expand chart",
+          chartModalClose: "Close",
           chartAxisCount: "Count",
           chartNoteSelectWijkBuurt: "Select a wijk or buurt to see charts.",
           chartSourceLine: "Source: Kadaster BAG OGC API v2 + CBS Wijk- en Buurtkaart",
@@ -562,6 +566,18 @@
         setText('layers1', tr('layers1'));
         setText('layers2', tr('layers2'));
         if (homeBtnEl) homeBtnEl.title = tr('homeTitle');
+        document.querySelectorAll('.chartExpandBtn').forEach(btn => {
+          btn.setAttribute('aria-label', tr('chartExpand'));
+          btn.title = tr('chartExpand');
+        });
+        const chartCloseEl = document.getElementById('chartExpandClose');
+        if (chartCloseEl){
+          chartCloseEl.setAttribute('aria-label', tr('chartModalClose'));
+          chartCloseEl.title = tr('chartModalClose');
+        }
+        if (expandedChartKey){
+          syncExpandedTitle();
+        }
         if (bmBtnEl) bmBtnEl.title = tr('basemapTitle');
         refreshBasemapPopoverTexts();
         refreshSelectionLabelsOnly();
@@ -664,6 +680,14 @@
       // the Map visualization section further down the file.
       let activeMapVisualization = null;
       const savedLayerPaint = new Map();
+
+      // Expand-chart modal state - declared here (top-of-file) for the same
+      // TDZ reason as activeMapVisualization above: applyLanguageText reads
+      // `expandedChartKey` synchronously during boot, before the modal
+      // block further down the file is reached.
+      let expandedChartKey = null;
+      let expandedChartInstance = null;
+      let chartModalEscHandler = null;
 
       function registrySummarySectionHtml(registryName, innerHtml){
         return `
@@ -1739,6 +1763,208 @@
         if (sourceLineEl) sourceLineEl.style.display = 'none';
       }
 
+      // ---------- Expand-chart modal ----------
+      const CHART_KEY_TO_PANEL_CANVAS = {
+        bouwjaar: 'chartBouwjaar',
+        gebruiksdoel: 'chartGebruiksdoel',
+        oppervlakte: 'chartOppervlakte',
+      };
+      const CHART_KEY_TO_TITLE_KEY = {
+        bouwjaar: 'chartTitleBouwjaar',
+        gebruiksdoel: 'chartTitleGebruiksdoel',
+        oppervlakte: 'chartTitleOppervlakte',
+      };
+      const CHART_KEY_TO_PANEL_SKELETON = {
+        bouwjaar: 'chartSkeletonBouwjaar',
+        gebruiksdoel: 'chartSkeletonGebruiksdoel',
+        oppervlakte: 'chartSkeletonOppervlakte',
+      };
+      const CHART_KEY_TO_SOURCE_BAG_KEY = {
+        bouwjaar: () => 'pand',
+        gebruiksdoel: () => activeBagKeys().includes('verblijfsobject') ? 'verblijfsobject' : 'pand',
+        oppervlakte: () => 'verblijfsobject',
+      };
+
+      function destroyExpandedChart(){
+        if (expandedChartInstance){
+          try{ expandedChartInstance.destroy(); }catch(_){}
+          expandedChartInstance = null;
+        }
+      }
+
+      function panelSkeletonVisible(key){
+        const el = document.getElementById(CHART_KEY_TO_PANEL_SKELETON[key]);
+        return !!(el && el.style.display !== 'none');
+      }
+
+      function buildExpandedBouwjaarConfig(features){
+        const { labels, counts } = aggregateBouwjaar(features);
+        if (counts.reduce((a, b) => a + b, 0) === 0) return null;
+        const color = bagChartCssVar('--accent', '#0ea5e9');
+        const barColors = bouwjaarBarColors(labels) || color;
+        const opts = commonChartOptions();
+        opts.scales.x.ticks.maxRotation = 60;
+        opts.scales.x.ticks.minRotation = 60;
+        opts.scales.x.ticks.autoSkip = false;
+        opts.animation = { duration: 0 };
+        return {
+          type: 'bar',
+          data: { labels, datasets: [{ data: counts, backgroundColor: barColors, borderRadius: 3, maxBarThickness: 60 }] },
+          options: opts,
+        };
+      }
+
+      function buildExpandedGebruiksdoelConfig(features){
+        const entries = aggregateGebruiksdoel(features);
+        if (!entries.length) return null;
+        const color = bagChartCssVar('--accent', '#0ea5e9');
+        const muted = bagChartCssVar('--muted', 'rgba(15,23,42,0.62)');
+        const labels = entries.map(e => tr(GEBRUIKSDOEL_TR_KEY[e.key] || e.key));
+        const counts = entries.map(e => e.count);
+        const barColors = gebruiksdoelBarColors(entries) || color;
+        return {
+          type: 'bar',
+          data: { labels, datasets: [{ data: counts, backgroundColor: barColors, borderRadius: 3, maxBarThickness: 36 }] },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 0 },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: { label: (ctx) => `${tr('chartAxisCount')}: ${formatNumber(ctx.parsed.x)}` },
+              },
+            },
+            scales: {
+              x: { beginAtZero: true, ticks: { color: muted, font: { size: 11 }, precision: 0 }, grid: { color: 'rgba(15,23,42,0.06)' } },
+              y: { ticks: { color: muted, font: { size: 11 }, autoSkip: false }, grid: { display: false } },
+            },
+          },
+        };
+      }
+
+      function buildExpandedOppervlakteConfig(features){
+        const { labels, counts } = aggregateOppervlakte(features);
+        if (counts.reduce((a, b) => a + b, 0) === 0) return null;
+        const color = bagChartCssVar('--accent', '#0ea5e9');
+        const barColors = oppervlakteBarColors() || color;
+        const opts = commonChartOptions();
+        opts.scales.x.ticks.autoSkip = false;
+        opts.animation = { duration: 0 };
+        return {
+          type: 'bar',
+          data: { labels, datasets: [{ data: counts, backgroundColor: barColors, borderRadius: 3, maxBarThickness: 80 }] },
+          options: opts,
+        };
+      }
+
+      function buildExpandedConfig(key){
+        const sourceKey = CHART_KEY_TO_SOURCE_BAG_KEY[key]?.();
+        if (!sourceKey) return null;
+        const features = getCachedBagFeatures(sourceKey);
+        if (!features || !features.length) return null;
+        if (key === 'bouwjaar') return buildExpandedBouwjaarConfig(features);
+        if (key === 'gebruiksdoel') return buildExpandedGebruiksdoelConfig(features);
+        if (key === 'oppervlakte') return buildExpandedOppervlakteConfig(features);
+        return null;
+      }
+
+      function syncExpandedTitle(){
+        const titleEl = document.getElementById('chartExpandTitle');
+        if (titleEl && expandedChartKey){
+          titleEl.textContent = tr(CHART_KEY_TO_TITLE_KEY[expandedChartKey]);
+        }
+      }
+
+      function showExpandedSkeleton(show){
+        const skel = document.getElementById('chartExpandSkeleton');
+        const canvas = document.getElementById('chartExpandCanvas');
+        if (skel) skel.style.display = show ? '' : 'none';
+        if (canvas) canvas.style.visibility = show ? 'hidden' : '';
+      }
+
+      function openChartModal(key){
+        if (!CHART_KEY_TO_PANEL_CANVAS[key]) return;
+        const modalEl = document.getElementById('chartExpandModal');
+        const canvas = document.getElementById('chartExpandCanvas');
+        if (!modalEl || !canvas) return;
+        if (expandedChartKey && expandedChartKey !== key){
+          destroyExpandedChart();
+        }
+        expandedChartKey = key;
+        syncExpandedTitle();
+        modalEl.classList.add('is-open');
+        modalEl.setAttribute('aria-hidden', 'false');
+
+        const renderInModal = () => {
+          destroyExpandedChart();
+          if (panelSkeletonVisible(key)){
+            showExpandedSkeleton(true);
+            return;
+          }
+          const cfg = buildExpandedConfig(key);
+          if (!cfg){
+            showExpandedSkeleton(true);
+            return;
+          }
+          showExpandedSkeleton(false);
+          if (typeof Chart === 'undefined') return;
+          expandedChartInstance = new Chart(canvas.getContext('2d'), cfg);
+        };
+
+        // Defer one frame so the modal layout settles before Chart sizes itself.
+        requestAnimationFrame(() => {
+          if (expandedChartKey !== key) return;
+          renderInModal();
+        });
+
+        if (!chartModalEscHandler){
+          chartModalEscHandler = (e) => {
+            if (e.key === 'Escape') closeChartModal();
+          };
+          document.addEventListener('keydown', chartModalEscHandler);
+        }
+      }
+
+      function closeChartModal(){
+        const modalEl = document.getElementById('chartExpandModal');
+        if (!modalEl || !modalEl.classList.contains('is-open')) {
+          expandedChartKey = null;
+          destroyExpandedChart();
+          return;
+        }
+        destroyExpandedChart();
+        modalEl.classList.remove('is-open');
+        modalEl.setAttribute('aria-hidden', 'true');
+        expandedChartKey = null;
+        if (chartModalEscHandler){
+          document.removeEventListener('keydown', chartModalEscHandler);
+          chartModalEscHandler = null;
+        }
+      }
+
+      function refreshExpandedChartIfOpen(){
+        if (!expandedChartKey) return;
+        const modalEl = document.getElementById('chartExpandModal');
+        if (!modalEl?.classList.contains('is-open')) return;
+        const canvas = document.getElementById('chartExpandCanvas');
+        if (!canvas) return;
+        destroyExpandedChart();
+        if (panelSkeletonVisible(expandedChartKey)){
+          showExpandedSkeleton(true);
+          return;
+        }
+        const cfg = buildExpandedConfig(expandedChartKey);
+        if (!cfg){
+          showExpandedSkeleton(true);
+          return;
+        }
+        showExpandedSkeleton(false);
+        if (typeof Chart === 'undefined') return;
+        expandedChartInstance = new Chart(canvas.getContext('2d'), cfg);
+      }
+
       // Single source of truth: wipe the data summary panel and replace
       // every section with a skeleton placeholder. Called on both area
       // change and layer toggle so stale data never lingers on screen.
@@ -2127,6 +2353,7 @@
       // ===== end map visualization =====
 
       async function refreshBagView(){
+        closeChartModal();
         const activeKeys = activeBagKeys();
         const reqId = ++bagFeatureRequestId;
         closeBagPopup();
@@ -2843,6 +3070,30 @@ function clearBelowProvince(){ state.gemeenteStatcode = ""; state.gmCode = ""; s
             setActiveMapVisualization(mode);
           });
         });
+
+        document.querySelectorAll('.chartExpandBtn[data-chart-key]').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const key = btn.dataset.chartKey;
+            if (key) openChartModal(key);
+          });
+        });
+        ['Bouwjaar', 'Gebruiksdoel', 'Oppervlakte'].forEach(suffix => {
+          const sectionEl = document.getElementById(`chartSection${suffix}`);
+          const wrapEl = sectionEl?.querySelector('.bagChartCanvasWrap');
+          const key = suffix.toLowerCase();
+          wrapEl?.addEventListener('click', (e) => {
+            if (e.target.closest('.chartExpandBtn')) return;
+            openChartModal(key);
+          });
+        });
+        const chartModalEl = document.getElementById('chartExpandModal');
+        const chartModalCloseEl = document.getElementById('chartExpandClose');
+        chartModalCloseEl?.addEventListener('click', closeChartModal);
+        chartModalEl?.addEventListener('click', (e) => {
+          if (e.target === chartModalEl) closeChartModal();
+        });
+
         updateVizButtons();
         updateVizLegend();
         map.on("click", e => { const dataFeature = queryDataFeature(e.point); if (dataFeature){ openBagPopup(dataFeature, e.lngLat); return; } const buurt = featureUnderPointer(e.point, "cbs-buurt-hit"); if (buurt){ closeBagPopup(); return selectBuurtByFeature(buurt, true); } const wijk = featureUnderPointer(e.point, "cbs-wijk-hit"); if (wijk){ closeBagPopup(); return selectWijkByFeature(wijk, true); } const gemeente = featureUnderPointer(e.point, "cbs-gemeente-hit"); if (gemeente){ closeBagPopup(); return selectMunicipalityByFeature(gemeente, true); } const provincie = featureUnderPointer(e.point, "cbs-provincie-hit"); if (provincie){ closeBagPopup(); return selectProvinceByFeature(provincie, true); } closeBagPopup(); });

@@ -210,6 +210,9 @@
           <div class="hint" id="bagSummaryBody" aria-live="polite">Kies een gebied en schakel BAG in.</div>
 
           <div class="bagChartSection" id="chartSectionBouwjaar" style="display:none;">
+            <button type="button" class="chartExpandBtn" data-chart-key="bouwjaar" aria-label="Diagram vergroten" title="Diagram vergroten">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
             <div class="bagChartHeading" id="chartTitleBouwjaar">Bouwjaar</div>
             <div class="bagChartCanvasWrap">
               <canvas id="chartBouwjaar"></canvas>
@@ -235,6 +238,9 @@
           </div>
 
           <div class="bagChartSection" id="chartSectionGebruiksdoel" style="display:none;">
+            <button type="button" class="chartExpandBtn" data-chart-key="gebruiksdoel" aria-label="Diagram vergroten" title="Diagram vergroten">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
             <div class="bagChartHeading" id="chartTitleGebruiksdoel">Gebruiksdoel</div>
             <div class="bagChartCanvasWrap">
               <canvas id="chartGebruiksdoel"></canvas>
@@ -251,6 +257,9 @@
           </div>
 
           <div class="bagChartSection" id="chartSectionOppervlakte" style="display:none;">
+            <button type="button" class="chartExpandBtn" data-chart-key="oppervlakte" aria-label="Diagram vergroten" title="Diagram vergroten">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
             <div class="bagChartHeading" id="chartTitleOppervlakte">Oppervlakte verblijfsobjecten</div>
             <div class="bagChartCanvasWrap">
               <canvas id="chartOppervlakte"></canvas>
@@ -324,7 +333,32 @@
     </div>
   </div>
 
-  
+  <div class="chartModalBackdrop" id="chartExpandModal" role="dialog" aria-modal="true" aria-labelledby="chartExpandTitle" aria-hidden="true">
+    <div class="chartModalCard" role="document">
+      <div class="chartModalHead">
+        <h3 class="chartModalTitle" id="chartExpandTitle"></h3>
+        <button type="button" class="chartModalClose" id="chartExpandClose" aria-label="Sluiten" title="Sluiten">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="chartModalBody">
+        <div class="chartModalCanvasWrap">
+          <canvas id="chartExpandCanvas"></canvas>
+          <div class="bagChartSkeleton" id="chartExpandSkeleton" aria-hidden="true" style="display:none;">
+            <span class="bagChartSkeletonBar" style="height:30%"></span>
+            <span class="bagChartSkeletonBar" style="height:60%"></span>
+            <span class="bagChartSkeletonBar" style="height:90%"></span>
+            <span class="bagChartSkeletonBar" style="height:70%"></span>
+            <span class="bagChartSkeletonBar" style="height:40%"></span>
+            <span class="bagChartSkeletonBar" style="height:80%"></span>
+            <span class="bagChartSkeletonBar" style="height:50%"></span>
+            <span class="bagChartSkeletonBar" style="height:30%"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>

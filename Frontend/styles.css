@@ -682,9 +682,9 @@
       position:absolute;
       top:14px;
       right:12px;
-      bottom:178px;
       width:292px;
       max-width:min(292px, calc(100% - 24px));
+      max-height: calc(100% - 90px);
       overflow:auto;
       z-index:4;
       border-radius:16px;
@@ -1017,6 +1017,136 @@
       margin-top:14px;
       padding-top:12px;
       border-top:1px solid var(--stroke);
+      position: relative;
+    }
+    .chartExpandBtn{
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--text-muted);
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s ease, color 0.15s ease;
+      z-index: 2;
+    }
+    .chartExpandBtn:hover{
+      color: var(--geo-green);
+      background: var(--geo-green-tint);
+    }
+    .chartExpandBtn svg{
+      width: 16px;
+      height: 16px;
+      pointer-events: none;
+    }
+    .bagChartCanvasWrap{ cursor: pointer; }
+    .bagChartCanvasWrap canvas{ cursor: pointer; }
+
+    .chartModalBackdrop{
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 150ms ease, visibility 0s linear 150ms;
+    }
+    .chartModalBackdrop.is-open{
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 150ms ease, visibility 0s linear 0s;
+    }
+    .chartModalCard{
+      width: 80vw;
+      height: 80vh;
+      max-width: 1400px;
+      max-height: 900px;
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transform: scale(0.96);
+      opacity: 0;
+      transition: transform 200ms ease-out, opacity 200ms ease-out;
+    }
+    .chartModalBackdrop.is-open .chartModalCard{
+      transform: scale(1);
+      opacity: 1;
+    }
+    .chartModalHead{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .chartModalTitle{
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--geo-dark);
+    }
+    .chartModalClose{
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .chartModalClose:hover{
+      color: var(--geo-dark);
+      background: var(--surface-subtle);
+    }
+    .chartModalClose svg{
+      width: 20px;
+      height: 20px;
+      pointer-events: none;
+    }
+    .chartModalBody{
+      flex: 1 1 auto;
+      min-height: 0;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+    }
+    .chartModalCanvasWrap{
+      position: relative;
+      flex: 1 1 auto;
+      min-height: 0;
+      width: 100%;
+    }
+    .chartModalCanvasWrap canvas{
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+    @media (max-width: 600px){
+      .chartModalCard{
+        width: 95vw;
+        height: 90vh;
+      }
+      .chartModalTitle{ font-size: 16px; }
     }
     .bagChartHeading{
       font-size:11px;
