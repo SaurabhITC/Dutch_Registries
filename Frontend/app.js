@@ -734,7 +734,10 @@
         const btn = document.getElementById('reportDownloadBtn');
         if (!btn) return;
         const level = (typeof selectedAreaLevel === 'function') ? selectedAreaLevel() : '';
-        const visible = (level === 'wijk' || level === 'buurt');
+        const areaFeature = (typeof selectedAreaFeature === 'function') ? selectedAreaFeature() : null;
+        const visible = (level === 'wijk' || level === 'buurt')
+          && activeBagKeys().length > 0
+          && !!areaFeature;
         btn.hidden = !visible;
         if (!visible){
           const errEl = document.getElementById('reportDownloadError');

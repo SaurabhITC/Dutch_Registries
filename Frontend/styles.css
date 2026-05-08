@@ -302,6 +302,51 @@
       gap:10px;
     }
 
+    .cardTitleSpacer{ flex:1 1 auto; }
+
+    .reportDownloadBtn{
+      flex:0 0 auto;
+      width:28px;
+      height:28px;
+      padding:0;
+      border:0;
+      border-radius:6px;
+      background: transparent;
+      color: var(--text-secondary);
+      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .reportDownloadBtn:hover,
+    .reportDownloadBtn:focus-visible{
+      color: var(--geo-green);
+      background: var(--surface-subtle);
+      outline: none;
+    }
+    .reportDownloadBtn:focus-visible{
+      box-shadow: 0 0 0 2px var(--geo-green-focus);
+    }
+    .reportDownloadBtn[hidden]{ display:none !important; }
+    .reportDownloadBtn:disabled{ cursor:wait; opacity: 0.85; }
+    .reportDownloadBtn svg{ width:16px; height:16px; pointer-events:none; }
+    .reportDownloadBtn .reportSpinner{ display:none; animation: reportSpin 0.9s linear infinite; }
+    .reportDownloadBtn.is-loading svg:not(.reportSpinner){ display:none; }
+    .reportDownloadBtn.is-loading .reportSpinner{ display:inline; }
+    @keyframes reportSpin{ to{ transform: rotate(360deg); } }
+
+    .reportDownloadError{
+      margin-top:8px;
+      padding:6px 10px;
+      font-size:11px;
+      color:#9a3412;
+      background: rgba(249, 115, 22, 0.10);
+      border:1px solid rgba(249, 115, 22, 0.35);
+      border-radius:8px;
+    }
+    .reportDownloadError[hidden]{ display:none !important; }
+
     .badge{
       font-size:11px;
       color: var(--muted);

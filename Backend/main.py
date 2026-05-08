@@ -8,8 +8,9 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
 from Backend.config import settings
 from Backend.logging_setup import get_logger
@@ -26,6 +27,7 @@ from Backend.domain import (
     feature_intersects_area,
     wijk_body,
 )
+from Backend.domain.report import build_report_pdf
 from Backend.paths import SUMMARY_FILE
 from Backend.pdok import BAG_COLLECTION_URLS, BAG_PAND_URL, fetch_all_features
 
@@ -725,6 +727,61 @@ async def get_bag_object(
         "level": level,
         "statcode": statcode,
     }
+
+
+class ReportRequest(BaseModel):
+    area_type: str = Field(..., description="'wijk' or 'buurt'")
+    area_id: str
+    area_name: str
+    parent_municipality: str = ""
+    parent_province: str = ""
+    layers: List[str] = Field(default_factory=list)
+    language: str = "nl"
+    bbox: List[float] = Field(default_factory=list)
+
+
+def _safe_filename(name: str) -> str:
+    cleaned = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in name.strip())
+    return cleaned or "report"
+
+
+@app.post("/api/report/generate")
+async def generate_report(payload: ReportRequest) -> Response:
+    area_type = payload.area_type.strip().lower()
+    if area_type not in {"wijk", "buurt"}:
+        raise HTTPException(status_code=400, detail="area_type must be 'wijk' or 'buurt'")
+    if not payload.area_id.strip():
+        raise HTTPException(status_code=400, detail="area_id is required")
+
+    try:
+        pdf_bytes = await build_report_pdf(
+            area_type=area_type,
+            area_id=payload.area_id.strip().upper(),
+            area_name=payload.area_name or payload.area_id,
+            parent_municipality=payload.parent_municipality,
+            parent_province=payload.parent_province,
+            layers=list(payload.layers or []),
+            language=payload.language or "nl",
+            bbox=list(payload.bbox or []),
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive logging path
+        logger.exception("report generation failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Report generation failed: {exc}")
+
+    safe_name = _safe_filename(payload.area_name or payload.area_id)
+    date_str = time.strftime("%Y%m%d")
+    filename = f"{safe_name}_{date_str}.pdf"
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 app.mount("/Assets", StaticFiles(directory=str(FRONTEND_DIR / "Assets")), name="assets")

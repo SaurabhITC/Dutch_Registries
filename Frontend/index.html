@@ -205,9 +205,21 @@
         <div class="card" id="bagSummaryCard" style="display:none;">
           <div class="cardTitle">
             <span id="bagSummaryTitle">Gegevenssamenvatting</span>
+            <span class="cardTitleSpacer"></span>
             <span class="badge" id="bagSummaryBadge">gegevens</span>
+            <button type="button" class="reportDownloadBtn" id="reportDownloadBtn" hidden aria-label="Rapport downloaden" title="Rapport downloaden">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 4v11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                <path d="M7 11l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M5 19h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+              <svg class="reportSpinner" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="14 40"/>
+              </svg>
+            </button>
           </div>
           <div class="hint" id="bagSummaryBody" aria-live="polite">Kies een gebied en schakel BAG in.</div>
+          <div class="reportDownloadError" id="reportDownloadError" role="alert" hidden></div>
 
           <div class="bagChartSection" id="chartSectionBouwjaar" style="display:none;">
             <button type="button" class="chartExpandBtn" data-chart-key="bouwjaar" aria-label="Diagram vergroten" title="Diagram vergroten">
