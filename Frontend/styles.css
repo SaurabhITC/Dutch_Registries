@@ -398,14 +398,17 @@
     .areaField:first-of-type{ margin-top: 6px; }
     .areaField > label{
       position: absolute;
-      top: -8px;
+      top: 0;
       left: 12px;
+      transform: translateY(-50%);
       z-index: 2;
-      padding: 0 6px;
+      box-sizing: border-box;
+      padding: 2px 6px;
+      overflow: visible;
       background: #ffffff;
       font-size: 11px;
       font-weight: 500;
-      line-height: 1.4;
+      line-height: 1.6;
       color: var(--text-secondary);
       letter-spacing: 0;
       text-transform: none;
@@ -495,17 +498,27 @@
 
     .registryItem{
       display:flex;
-      align-items:flex-start;
+      align-items:center;
       justify-content:space-between;
       gap:10px;
-      padding:10px 10px;
-      border-radius:12px;
+      padding:10px 12px;
+      border-radius:10px;
       border:1px solid rgba(15,23,42,0.10);
       background: rgba(255,255,255,0.72);
     }
-    .registryLeft{display:flex;flex-direction:column;gap:4px;min-width:0}
-    .registryName{font-weight:900;font-size:12px;color: rgba(15,23,42,0.86)}
-    .registryDesc{font-size:11px;color: var(--muted);line-height:1.2}
+    .registryItem.is-disabled{
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .registryItem.is-disabled .appCheck{ cursor: not-allowed; }
+    .registryLeft{
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+      min-width:0;
+    }
+    .registryName{font-weight:600;font-size:12px;color: var(--text-primary);line-height:1.3}
+    .registryDesc{font-weight:400;font-size:11px;color: var(--text-muted);line-height:1.3}
     .bagGroup{
       border-radius:14px;
       border:1px solid rgba(15,23,42,0.10);
@@ -560,21 +573,26 @@
     .bagObjectList{
       display:flex;
       flex-direction:column;
-      gap:6px;
-      padding:2px 12px 12px;
+      gap:0;
+      padding:0;
     }
     .bagObjectItem{
       display:flex;
       align-items:center;
       justify-content:space-between;
       gap:10px;
-      padding:6px 10px;
-      border-radius:10px;
-      background: rgba(2,6,23,0.03);
-      border:1px solid rgba(15,23,42,0.08);
+      padding:8px 12px;
+      border:0;
+      border-radius:0;
+      background: transparent;
+      border-bottom: 1px solid var(--border-subtle);
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s ease;
     }
-    .bagObjectItem.is-disabled{ opacity:0.62; }
-    .bagObjectName{font-weight:800;font-size:12px;color: rgba(15,23,42,0.86);min-width:0}
+    .bagObjectItem:last-child{ border-bottom: 0; }
+    .bagObjectItem:hover{ background: var(--geo-green-tint); }
+    .bagObjectName{font-weight:600;font-size:12px;color: var(--text-primary);min-width:0;flex:1 1 auto;}
     .toggle{
       display:flex;
       align-items:center;
@@ -586,6 +604,42 @@
       font-weight:800;
     }
     .toggle input{transform: translateY(1px);}
+
+    .appCheck{
+      appearance: none;
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      flex: 0 0 18px;
+      margin: 0;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: #ffffff;
+      cursor: pointer;
+      display: inline-block;
+      vertical-align: middle;
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+      background-position: center;
+      background-repeat: no-repeat;
+      background-size: 14px 14px;
+    }
+    .appCheck:hover:not(:disabled){
+      border-color: var(--geo-green);
+    }
+    .appCheck:focus-visible{
+      outline: 0;
+      border-color: var(--geo-green);
+      box-shadow: 0 0 0 2px var(--geo-green-focus);
+    }
+    .appCheck:checked{
+      background-color: var(--geo-green);
+      border-color: var(--geo-green);
+      background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5l3 3 7-7' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    }
+    .appCheck:disabled{
+      cursor: not-allowed;
+    }
 
     .labelRow{
       display:flex;

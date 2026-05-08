@@ -156,63 +156,53 @@
               </button>
               <div class="bagAccordionPanel" id="bagAccordionPanel">
                 <div class="bagObjectList">
-                  <div class="bagObjectItem">
-                    <div class="bagObjectName" id="bagNamePand">Pand</div>
-                    <label class="toggle" title="Inschakelen"><input type="checkbox" id="toggleBagPand" aria-label="BAG pand inschakelen"></label>
-                  </div>
+                  <label class="bagObjectItem" title="Inschakelen">
+                    <span class="bagObjectName" id="bagNamePand">Pand</span>
+                    <input type="checkbox" class="appCheck" id="toggleBagPand" aria-label="BAG pand inschakelen">
+                  </label>
 
-                  <div class="bagObjectItem">
-                    <div class="bagObjectName" id="bagNameVerblijfsobject">Verblijfsobject</div>
-                    <label class="toggle" title="Inschakelen"><input type="checkbox" id="toggleBagVerblijfsobject" aria-label="BAG verblijfsobject inschakelen"></label>
-                  </div>
+                  <label class="bagObjectItem" title="Inschakelen">
+                    <span class="bagObjectName" id="bagNameVerblijfsobject">Verblijfsobject</span>
+                    <input type="checkbox" class="appCheck" id="toggleBagVerblijfsobject" aria-label="BAG verblijfsobject inschakelen">
+                  </label>
 
-                  <div class="bagObjectItem">
-                    <div class="bagObjectName" id="bagNameAdres">Adres</div>
-                    <label class="toggle" title="Inschakelen"><input type="checkbox" id="toggleBagAdres" aria-label="BAG adres inschakelen"></label>
-                  </div>
+                  <label class="bagObjectItem" title="Inschakelen">
+                    <span class="bagObjectName" id="bagNameAdres">Adres</span>
+                    <input type="checkbox" class="appCheck" id="toggleBagAdres" aria-label="BAG adres inschakelen">
+                  </label>
 
-                  <div class="bagObjectItem">
-                    <div class="bagObjectName" id="bagNameWoonplaats">Woonplaats</div>
-                    <label class="toggle" title="Inschakelen"><input type="checkbox" id="toggleBagWoonplaats" aria-label="BAG woonplaats inschakelen"></label>
-                  </div>
+                  <label class="bagObjectItem" title="Inschakelen">
+                    <span class="bagObjectName" id="bagNameWoonplaats">Woonplaats</span>
+                    <input type="checkbox" class="appCheck" id="toggleBagWoonplaats" aria-label="BAG woonplaats inschakelen">
+                  </label>
 
-                  <div class="bagObjectItem">
-                    <div class="bagObjectName" id="bagNameStandplaats">Standplaats</div>
-                    <label class="toggle" title="Inschakelen"><input type="checkbox" id="toggleBagStandplaats" aria-label="BAG standplaats inschakelen"></label>
-                  </div>
+                  <label class="bagObjectItem" title="Inschakelen">
+                    <span class="bagObjectName" id="bagNameStandplaats">Standplaats</span>
+                    <input type="checkbox" class="appCheck" id="toggleBagStandplaats" aria-label="BAG standplaats inschakelen">
+                  </label>
 
-                  <div class="bagObjectItem">
-                    <div class="bagObjectName" id="bagNameLigplaats">Ligplaats</div>
-                    <label class="toggle" title="Inschakelen"><input type="checkbox" id="toggleBagLigplaats" aria-label="BAG ligplaats inschakelen"></label>
-                  </div>
-
-                  <div class="bagObjectItem is-disabled">
-                    <div class="bagObjectName" id="bagNameOpenbareRuimte">Openbare ruimte</div>
-                    <label class="toggle" title="Geen aparte kaartlaag in BAG OGC v2"><input type="checkbox" disabled aria-label="Openbare ruimte niet als aparte kaartlaag beschikbaar"></label>
-                  </div>
-
-                  <div class="bagObjectItem is-disabled">
-                    <div class="bagObjectName" id="bagNameNummeraanduiding">Nummeraanduiding</div>
-                    <label class="toggle" title="Gebruik Adres in BAG OGC v2"><input type="checkbox" disabled aria-label="Nummeraanduiding niet als aparte kaartlaag beschikbaar"></label>
-                  </div>
+                  <label class="bagObjectItem" title="Inschakelen">
+                    <span class="bagObjectName" id="bagNameLigplaats">Ligplaats</span>
+                    <input type="checkbox" class="appCheck" id="toggleBagLigplaats" aria-label="BAG ligplaats inschakelen">
+                  </label>
                 </div>
               </div>
             </div>
 
-            <div class="registryItem" style="margin-top:10px;">
+            <div class="registryItem is-disabled" style="margin-top:10px;">
               <div class="registryLeft">
                 <div class="registryName">BGT</div>
-                <div class="registryDesc">Topografie / fysieke objecten (vergrendeld)</div>
+                <div class="registryDesc">Topografie / fysieke objecten</div>
               </div>
-              <label class="toggle" title="Vergrendeld"><input type="checkbox" disabled aria-label="BGT niet beschikbaar"></label>
+              <input type="checkbox" class="appCheck" disabled aria-label="BGT niet beschikbaar">
             </div>
 
-            <div class="registryItem" style="margin-top:10px;">
+            <div class="registryItem is-disabled" style="margin-top:10px;">
               <div class="registryLeft">
                 <div class="registryName">BRO</div>
-                <div class="registryDesc" id="descBro">Ondergrond / grondwatergebruik &amp; onderzoeken (vergrendeld)</div>
+                <div class="registryDesc" id="descBro">Ondergrond / grondwatergebruik &amp; onderzoeken</div>
               </div>
-              <label class="toggle" title="Vergrendeld"><input type="checkbox" disabled aria-label="BRO niet beschikbaar"></label>
+              <input type="checkbox" class="appCheck" disabled aria-label="BRO niet beschikbaar">
             </div>
 
           </div>
