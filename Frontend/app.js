@@ -25,7 +25,9 @@
       const toggleWijkLayerEl = document.getElementById("toggleWijkLayer");
       const toggleBuurtLayerEl = document.getElementById("toggleBuurtLayer");
       const selInfoEl = document.getElementById("selInfo");
-      const languageSelectEl = document.getElementById("languageSelect");
+      const languageButtonEl = document.getElementById("languageButton");
+      const languageMenuEl = document.getElementById("languageMenu");
+      const languageValueEl = document.getElementById("languageValue");
       const bagTogglePandEl = document.getElementById("toggleBagPand");
       const bagToggleVerblijfsobjectEl = document.getElementById("toggleBagVerblijfsobject");
       const bagToggleAdresEl = document.getElementById("toggleBagAdres");
@@ -502,11 +504,17 @@
       function applyLanguageText(){
         document.documentElement.lang = currentLang;
         document.title = tr('pageTitle');
-        if (languageSelectEl) {
-          languageSelectEl.value = currentLang;
-          languageSelectEl.setAttribute('aria-label', tr('languageAriaLabel'));
+        if (languageButtonEl) {
+          languageButtonEl.setAttribute('aria-label', tr('languageAriaLabel'));
         }
-        setText('languageLabel', tr('languageLabel'));
+        if (languageValueEl) {
+          languageValueEl.textContent = currentLang.toUpperCase();
+        }
+        if (languageMenuEl) {
+          for (const opt of languageMenuEl.querySelectorAll('[role="option"]')) {
+            opt.setAttribute('aria-selected', opt.dataset.lang === currentLang ? 'true' : 'false');
+          }
+        }
         setText('appTitle', tr('appTitle'));
         setText('sideHeadText', tr('sideHead'));
         setText('areaSelectionTitle', tr('areaSelectionTitle'));
@@ -2392,34 +2400,63 @@
         if (legendEl) legendEl.style.display = (showNational || showProvince || showMunicipality || showWijk || showBuurt || bagVisible || vizLegendVisible) ? 'block' : 'none';
       }
 
+      function syncAreaFieldEmptyStates(){
+        const pairs = [
+          [selProvincieEl, !state.provinceStatcode],
+          [selGemeenteEl, !state.gemeenteStatcode],
+          [selWijkEl, !state.wijkStatcode],
+          [selBuurtEl, !state.buurtStatcode]
+        ];
+        for (const [el, isEmpty] of pairs){
+          const field = el?.closest('.areaField');
+          if (field) field.classList.toggle('is-empty', isEmpty);
+        }
+      }
+
       function updateInfoBox(){
-      const lines = [];
+      const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+      const segs = [];
 
       if (state.provinceStatcode){
       const pf = provinceByStatcode.get(state.provinceStatcode);
-      if (pf) lines.push(`${tr("infoProvince")}: ${prettyName(pf.properties)} (${state.provinceStatcode})`);
+      if (pf) segs.push({ level: 'province', name: prettyName(pf.properties) });
       }
 
       if (state.gemeenteStatcode){
       const gf = gemeenteByStatcode.get(state.gemeenteStatcode);
-      if (gf) lines.push(`${tr("infoMunicipality")}: ${prettyName(gf.properties)} (${state.gemeenteStatcode})`);
+      if (gf) segs.push({ level: 'gemeente', name: prettyName(gf.properties) });
       }
 
       if (state.wijkStatcode){
       const wf =
       visibleWijken.find(f => f.properties?._statcode === state.wijkStatcode) ||
       allWijken.find(f => f.properties?._statcode === state.wijkStatcode);
-      if (wf) lines.push(`${tr("infoWijk")}: ${prettyName(wf.properties)} (${state.wijkStatcode})`);
+      if (wf) segs.push({ level: 'wijk', name: prettyName(wf.properties) });
       }
 
       if (state.buurtStatcode){
      const bf =
       visibleBuurten.find(f => f.properties?._statcode === state.buurtStatcode) ||
       allBuurten.find(f => f.properties?._statcode === state.buurtStatcode);
-      if (bf) lines.push(`${tr("infoBuurt")}: ${prettyName(bf.properties)} (${state.buurtStatcode})`);
+      if (bf) segs.push({ level: 'buurt', name: prettyName(bf.properties) });
       }
 
-  selInfoEl.innerHTML = lines.join("<br>");
+      if (!segs.length){
+        selInfoEl.innerHTML = '';
+      } else {
+        const sep = '<svg class="bcSep" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>';
+        const lastIdx = segs.length - 1;
+        const html = segs.map((s, i) => {
+          const text = escapeHtml(s.name);
+          if (i === lastIdx){
+            return `<span class="bcSeg bcSeg--current">${text}</span>`;
+          }
+          return `<button type="button" class="bcSeg" data-bc-level="${s.level}">${text}</button>`;
+        }).join(sep);
+        selInfoEl.innerHTML = html;
+      }
+
+      syncAreaFieldEmptyStates();
 }
       function resetProvinceSelect(message=tr("loadingProvinces")){ selProvincieEl.innerHTML = `<option value="">${message}</option>`; selProvincieEl.disabled = true; }
       function resetMunicipalitySelect(message=tr("selectProvinceFirst")){ selGemeenteEl.innerHTML = `<option value="">${message}</option>`; selGemeenteEl.disabled = true; }
@@ -2684,7 +2721,91 @@ function clearBelowProvince(){ state.gemeenteStatcode = ""; state.gmCode = ""; s
         selGemeenteEl.addEventListener("change", ()=> selectMunicipality(selGemeenteEl.value, true));
         selWijkEl.addEventListener("change", ()=> { if (!state.gemeenteStatcode) return; selectWijk(selWijkEl.value, true); });
         selBuurtEl.addEventListener("change", ()=> { if (!state.wijkStatcode) return; selectBuurt(selBuurtEl.value, true); });
-        languageSelectEl?.addEventListener("change", ()=> setLanguage(languageSelectEl.value));
+        selInfoEl?.addEventListener("click", (e) => {
+          const btn = e.target.closest('button.bcSeg[data-bc-level]');
+          if (!btn) return;
+          const level = btn.dataset.bcLevel;
+          if (level === 'province') selectMunicipality('', true);
+          else if (level === 'gemeente') selectWijk('', true);
+          else if (level === 'wijk') selectBuurt('', true);
+        });
+        // Custom language dropdown — replaces the native <select>. Calls
+        // the existing setLanguage(lang) on selection; everything else
+        // (applyLanguageText / refreshBagView) is unchanged.
+        (function wireLanguageDropdown(){
+          if (!(languageButtonEl && languageMenuEl)) return;
+
+          const items = () => Array.from(languageMenuEl.querySelectorAll('[role="option"]'));
+          const isOpen = () => languageButtonEl.getAttribute('aria-expanded') === 'true';
+
+          const open = () => {
+            languageButtonEl.setAttribute('aria-expanded', 'true');
+            languageMenuEl.removeAttribute('hidden');
+            const arr = items();
+            const sel = arr.find(li => li.getAttribute('aria-selected') === 'true') || arr[0];
+            sel?.focus();
+          };
+          const close = ({ restoreFocus = true } = {}) => {
+            languageButtonEl.setAttribute('aria-expanded', 'false');
+            languageMenuEl.setAttribute('hidden', '');
+            if (restoreFocus) languageButtonEl.focus();
+          };
+          const select = (lang) => {
+            if (!locales[lang]) return;
+            setLanguage(lang);
+            close();
+          };
+          const moveFocus = (delta) => {
+            const arr = items();
+            const idx = arr.indexOf(document.activeElement);
+            const next = (idx === -1 ? 0 : (idx + delta + arr.length) % arr.length);
+            arr[next]?.focus();
+          };
+
+          languageButtonEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            isOpen() ? close() : open();
+          });
+          languageButtonEl.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === ' '){
+              e.preventDefault();
+              if (!isOpen()) open();
+            }
+          });
+
+          languageMenuEl.addEventListener('click', (e) => {
+            const li = e.target.closest('[role="option"]');
+            if (!li) return;
+            e.stopPropagation();
+            select(li.dataset.lang);
+          });
+          languageMenuEl.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowDown'){ e.preventDefault(); moveFocus(1); }
+            else if (e.key === 'ArrowUp'){ e.preventDefault(); moveFocus(-1); }
+            else if (e.key === 'Home'){ e.preventDefault(); items()[0]?.focus(); }
+            else if (e.key === 'End'){ e.preventDefault(); items().slice(-1)[0]?.focus(); }
+            else if (e.key === 'Enter' || e.key === ' '){
+              e.preventDefault();
+              const li = document.activeElement?.closest?.('[role="option"]');
+              if (li) select(li.dataset.lang);
+            }
+            else if (e.key === 'Escape'){ e.preventDefault(); close(); }
+            else if (e.key === 'Tab'){ close({ restoreFocus: false }); }
+          });
+
+          document.addEventListener('click', (e) => {
+            if (!isOpen()) return;
+            if (!languageButtonEl.contains(e.target) && !languageMenuEl.contains(e.target)){
+              close({ restoreFocus: false });
+            }
+          });
+          document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && isOpen()){
+              e.preventDefault();
+              close();
+            }
+          });
+        })();
         toggleGemeenteLayerEl?.addEventListener("click", ()=> setBoundaryLayerVisible('gemeente', !boundaryLayerVisible('gemeente')));
         toggleWijkLayerEl?.addEventListener("click", ()=> setBoundaryLayerVisible('wijk', !boundaryLayerVisible('wijk')));
         toggleBuurtLayerEl?.addEventListener("click", ()=> setBoundaryLayerVisible('buurt', !boundaryLayerVisible('buurt')));

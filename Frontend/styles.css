@@ -1,7 +1,9 @@
     :root{
       --pad: 10px;
       --r: 16px;
-      --text: rgba(15,23,42,0.92);
+
+      /* Body text - warmer / more institutional than the previous slate-92%. */
+      --text: #1c1c1c;
       --muted: rgba(15,23,42,0.62);
       --stroke: rgba(15,23,42,0.12);
       --card: rgba(255,255,255,0.88);
@@ -9,17 +11,38 @@
       --surface: rgba(255,255,255,0.58);
       --headerBg: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(248,250,252,0.90));
       --appBg:
-        radial-gradient(1200px 560px at 16% 12%, rgba(14,165,233,0.10), transparent 60%),
-        radial-gradient(1000px 520px at 86% 16%, rgba(34,197,94,0.07), transparent 60%),
+        radial-gradient(1200px 560px at 16% 12%, rgba(127,181,57,0.10), transparent 60%),
+        radial-gradient(1000px 520px at 86% 16%, rgba(27,77,62,0.06), transparent 60%),
         linear-gradient(180deg, #f8fafc, #eef2f7 70%);
       --btnBg: rgba(255,255,255,0.92);
       --btnBorder: rgba(15,23,42,0.14);
-      --btnHoverBorder: rgba(14,165,233,0.40);
+      --btnHoverBorder: rgba(127,181,57,0.40);
       --btnHoverBg: rgba(15,23,42,0.05);
       --shadow: 0 18px 55px rgba(2,6,23,0.16);
       --shadowSoft: 0 12px 34px rgba(2,6,23,0.12);
-      --accent: #0ea5e9;
-      --ok: rgba(34,197,94,0.95);
+
+      /* Geonovum brand palette. --accent and --ok retain their original
+         names so existing CSS rules and the `bagChartCssVar('--accent', ...)`
+         reads in app.js keep working unchanged; they are aliases of the
+         brand tokens. */
+      --geo-green:        #7FB539;
+      --geo-green-hover:  #6BA32E;
+      --geo-green-tint:   #E8F2DA;
+      --geo-green-focus:  rgba(127, 181, 57, 0.25);
+      --geo-dark:         #1B4D3E;
+      --geo-dark-hover:   #0F3328;
+
+      --accent: var(--geo-green);
+      --ok:     var(--geo-green);
+
+      /* Institutional text and surface tokens (added for clarity; existing
+         rules continue to use --text / --muted / --stroke). */
+      --text-primary:          #1c1c1c;
+      --text-secondary:        #535353;
+      --text-muted:            #767676;
+      --surface-subtle:        #f4f4f4;
+      --border:                #b4b4b4;
+      --border-subtle:         #e6e6e6;
     }
 
     *{box-sizing:border-box}
@@ -34,12 +57,9 @@
 
     #app{
       position:fixed;
-      inset: var(--pad);
-      border-radius: var(--r);
+      inset: 0;
       overflow:hidden;
-      border: 1px solid var(--stroke);
       background: rgba(255,255,255,0.10);
-      box-shadow: var(--shadow), 0 0 0 1px rgba(255,255,255,0.62) inset;
       display:flex;
       flex-direction:column;
     }
@@ -49,10 +69,10 @@
       display:flex;
       align-items:center;
       justify-content: space-between;
-      padding: 0 10px 0 14px;
+      padding: 0 24px;
       background: var(--headerBg);
-      border-bottom: 1px solid var(--stroke);
-      gap: 12px;
+      border-bottom: 1px solid var(--border-subtle);
+      gap: 16px;
     }
 
     .brand{
@@ -65,22 +85,19 @@
     .titleRow{
       display:flex;
       align-items:center;
-      gap:10px;
+      gap:8px;
       min-width:0;
-    }
-    .liveDot{
-      width:10px;height:10px;border-radius:999px;background: var(--ok);
-      box-shadow: 0 0 0 3px rgba(34,197,94,0.18);
-      flex:0 0 auto;
     }
     .brandText{min-width:0}
     .title{
-      font-weight:900;
-      font-size:14px;
-      line-height:1.15;
+      font-weight:700;
+      font-size:22px;
+      line-height:1.3;
+      letter-spacing:-0.005em;
       white-space:nowrap;
       overflow:hidden;
       text-overflow:ellipsis;
+      color: var(--geo-dark);
     }
 
     .iconBtn{
@@ -92,53 +109,120 @@
       display:flex;
       align-items:center;
       justify-content:center;
-      color: var(--text);
+      color: var(--text-muted);
       flex:0 0 auto;
+      transition: color 120ms ease, background 120ms ease;
     }
-    .iconBtn:hover{ background: rgba(15,23,42,0.06); }
+    .iconBtn:hover{ color: var(--text-secondary); background: rgba(15,23,42,0.04); }
     .iconBtn:active{ transform: translateY(0.5px); }
     .iconBtn svg{width:16px;height:16px}
 
     .headerRight{
       display:flex;
       align-items:center;
-      gap:12px;
+      gap:16px;
       flex:0 0 auto;
       margin-left:auto;
     }
 
+    /* Custom language dropdown.
+       The wrapper is the positioning context; the button is the closed-state
+       trigger; the listbox <ul> floats below it as an absolute element so
+       the menu chrome matches the rest of the dashboard rather than the
+       browser's native <select> popup. */
     .langSwitcher{
-      display:flex;
-      align-items:center;
-      gap:8px;
-      padding:6px 10px;
-      border-radius:12px;
-      border:1px solid var(--stroke);
-      background: rgba(255,255,255,0.76);
-      box-shadow: 0 8px 24px rgba(2,6,23,0.08);
-      backdrop-filter: blur(10px);
+      position: relative;
+      flex: 0 0 auto;
     }
-    .langLabel{
-      font-size:11px;
-      font-weight:900;
-      color: var(--muted);
-      margin:0;
-      white-space:nowrap;
+
+    .langButton{
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      width: auto;
+      height: 32px;
+      padding: 4px 8px;
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      background: #ffffff;
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: border-color 120ms ease, box-shadow 120ms ease;
     }
-    .langSelect{
-      margin:0;
-      width:auto;
-      min-width:74px;
-      padding:7px 28px 7px 10px;
-      font-size:12px;
-      font-weight:800;
-      border-radius:10px;
-      background: rgba(255,255,255,0.96);
+    .langButton:hover { border-color: var(--geo-green); }
+    .langButton:focus,
+    .langButton[aria-expanded="true"]{
+      outline: none;
+      border-color: var(--geo-green);
+      box-shadow: 0 0 0 2px var(--geo-green-focus);
+    }
+
+    .langButton .chevIcon  {
+      color: var(--text-secondary);
+      flex: 0 0 auto;
+      transition: transform 150ms ease;
+    }
+    .langButton[aria-expanded="true"] .chevIcon { transform: rotate(180deg); }
+
+    .langButtonValue { color: var(--text-primary); letter-spacing: 0.02em; }
+
+    .langMenu{
+      position: absolute;
+      top: calc(100% + 4px);
+      right: 0;
+      min-width: 132px;
+      margin: 0;
+      padding: 4px;
+      list-style: none;
+      background: #ffffff;
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+      z-index: 1000;
+    }
+    .langMenu[hidden] { display: none; }
+
+    .langMenuItem{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      height: 32px;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-primary);
+      cursor: pointer;
+      user-select: none;
+      outline: none;
+    }
+    .langMenuItem:hover,
+    .langMenuItem:focus { background: var(--geo-green-tint); }
+    .langMenuItem[aria-selected="true"]{
+      background: var(--geo-green-tint);
+      font-weight: 600;
+    }
+
+    .langMenuCheck{
+      color: var(--geo-green-hover);
+      flex: 0 0 auto;
+      visibility: hidden;
+    }
+    .langMenuItem[aria-selected="true"] .langMenuCheck { visibility: visible; }
+
+    .topDivider{
+      width:1px;
+      height:24px;
+      background: var(--border-subtle);
+      flex:0 0 auto;
     }
 
     .rightLogo{
-      margin-right: 0px;
-      height:46px;
+      height:36px;
       display:flex;
       align-items:center;
       padding:0;
@@ -146,7 +230,7 @@
       background:transparent;
     }
     .rightLogo img{
-      height:48px;
+      height:36px;
       width:auto;
       display:block;
     }
@@ -154,10 +238,10 @@
     #content{
       flex:1 1 auto;
       min-height:0;
-      padding: 12px;
+      padding: 8px;
       display:grid;
       grid-template-columns: 360px 1fr;
-      gap: 12px;
+      gap: 8px;
     }
 
     #sidebar{
@@ -201,7 +285,7 @@
     .cardTitle{
       font-weight:900;
       font-size:12px;
-      color: rgba(15,23,42,0.78);
+      color: var(--geo-dark);
       margin:0 0 8px 0;
       display:flex;
       align-items:center;
@@ -239,9 +323,12 @@
       outline:none;
       font-size:12px;
     }
+    select:hover{
+      border-color: var(--geo-green);
+    }
     select:focus{
-      border-color: rgba(14,165,233,0.42);
-      box-shadow: 0 0 0 3px rgba(14,165,233,0.14);
+      border-color: var(--geo-green);
+      box-shadow: 0 0 0 2px var(--geo-green-focus);
     }
 
     .row2{
@@ -250,17 +337,161 @@
       gap: 10px;
     }
 
-    .selectedLine{
-      margin-top:10px;
-      padding:10px 10px;
-      border-radius:12px;
-      border:1px solid var(--stroke);
-      background: rgba(2,6,23,0.02);
-      color: var(--text);
-      font-size:12px;
-      line-height:1.45;
+    .areaBreadcrumb{
+      margin: 0 0 10px 0;
+      padding: 6px 10px;
+      background: var(--surface-subtle);
+      border-radius: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 2px;
+      font-size: 11px;
+      line-height: 1.4;
     }
-    .selectedLine:empty{display:none;}
+    .areaBreadcrumb:empty{ display: none; }
+    .bcSeg{
+      display: inline-flex;
+      align-items: center;
+      background: transparent;
+      border: 0;
+      padding: 2px 4px;
+      margin: 0;
+      border-radius: 4px;
+      font: inherit;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: color 0.15s ease, background 0.15s ease;
+      max-width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .bcSeg:hover:not(.bcSeg--current){
+      color: var(--geo-green);
+      background: rgba(127, 181, 57, 0.10);
+    }
+    .bcSeg--current{
+      color: var(--geo-dark);
+      font-weight: 600;
+      cursor: default;
+    }
+    .bcSep{
+      width: 8px;
+      height: 8px;
+      flex: 0 0 8px;
+      color: var(--text-muted);
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      pointer-events: none;
+    }
+
+    .areaField{
+      display: block;
+      margin-top: 14px;
+      position: relative;
+    }
+    .areaField:first-of-type{ margin-top: 6px; }
+    .areaField > label{
+      position: absolute;
+      top: -8px;
+      left: 12px;
+      z-index: 2;
+      padding: 0 6px;
+      background: #ffffff;
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 1.4;
+      color: var(--text-secondary);
+      letter-spacing: 0;
+      text-transform: none;
+      pointer-events: none;
+    }
+    .areaInputGroup{
+      display: flex;
+      align-items: stretch;
+      width: 100%;
+      position: relative;
+    }
+    .areaInputGroup select{
+      width: 100%;
+      height: 36px;
+      margin: 0;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #ffffff;
+      color: var(--text-primary);
+      font-size: 14px;
+      font-weight: 400;
+      line-height: 1.2;
+      outline: none;
+    }
+    .areaField.is-empty .areaInputGroup select{
+      color: var(--text-muted);
+      font-style: italic;
+    }
+    .areaInputGroup select:hover:not(:disabled){
+      border-color: var(--geo-green);
+    }
+    .areaInputGroup select:focus{
+      border-color: var(--geo-green);
+      box-shadow: 0 0 0 2px var(--geo-green-focus);
+      position: relative;
+      z-index: 1;
+    }
+    .areaInputGroup select:disabled{
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .areaInputGroup--withEye select{
+      border-radius: 8px 0 0 8px;
+      border-right-width: 0;
+    }
+    .areaInputGroup--withEye select:focus{
+      border-right-width: 1px;
+      margin-right: -1px;
+    }
+    .areaInputGroup--withEye .layerIconBtn{
+      flex: 0 0 36px;
+      width: 36px;
+      height: 36px;
+      border: 1px solid var(--border);
+      border-radius: 0 8px 8px 0;
+      background: #ffffff;
+      color: var(--text-secondary);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      padding: 0;
+      transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, opacity 0.18s ease;
+    }
+    .areaInputGroup--withEye .layerIconBtn:hover{
+      background: var(--geo-green-tint);
+      color: var(--geo-green);
+      border-color: var(--geo-green);
+    }
+    .areaInputGroup--withEye .layerIconBtn:active{ transform: none; }
+    .areaInputGroup--withEye .layerIconBtn svg{
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      pointer-events: none;
+    }
+    .areaInputGroup--withEye .layerIconBtn.is-hidden{
+      opacity: 0.6;
+      color: var(--text-secondary);
+      background: var(--surface-subtle);
+    }
 
     .registryItem{
       display:flex;
@@ -381,8 +612,8 @@
       transition: background 0.18s ease, border-color 0.18s ease, opacity 0.18s ease, transform 0.18s ease;
     }
     .layerIconBtn:hover{
-      background: rgba(14,165,233,0.08);
-      border-color: rgba(14,165,233,0.28);
+      background: var(--geo-green-tint);
+      border-color: rgba(127, 181, 57, 0.45);
     }
     .layerIconBtn:active{ transform: translateY(0.5px); }
     .layerIconBtn svg{
@@ -699,6 +930,12 @@
     }
     .summaryRow span{color:var(--muted)}
     .summaryRow strong{text-align:right}
+    /* Count rows inside .summaryList (e.g. "Building : 680") get the
+       deep-teal-green prominent treatment; area/level rows above keep --text. */
+    .summaryList .summaryRow strong{
+      color: var(--geo-dark);
+      font-weight: 700;
+    }
     .summaryNote{
       margin-top:10px;
       font-size:11px;
@@ -828,14 +1065,17 @@
       line-height:1.2;
     }
     .bagChartVizBtn:hover:not(:disabled){
-      background: rgba(14,165,233,0.08);
+      background: var(--geo-green-tint);
+      border-color: var(--geo-green-hover);
     }
     .bagChartVizBtn.is-active{
-      background: var(--accent);
+      background: var(--geo-green-hover);
+      border-color: var(--geo-green-hover);
       color: #ffffff;
     }
     .bagChartVizBtn.is-active:hover:not(:disabled){
-      background: #0284c7;
+      background: var(--geo-dark);
+      border-color: var(--geo-dark);
     }
     .bagChartVizBtn:disabled{
       opacity: 0.55;

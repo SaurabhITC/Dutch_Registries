@@ -18,7 +18,6 @@
       <div class="brand">
         <div class="brandText">
           <div class="titleRow">
-            <span class="liveDot" aria-hidden="true"></span>
             <div class="title" id="appTitle">Nederlands Basisregistratie Dashboard</div>
             <button class="iconBtn" id="overviewBtn" type="button" title="Overzicht">
               <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -32,13 +31,36 @@
       </div>
 
       <div class="headerRight">
-        <div class="langSwitcher">
-          <label class="langLabel" for="languageSelect" id="languageLabel">Taal</label>
-          <select id="languageSelect" class="langSelect" aria-label="Taal">
-            <option value="nl">NL</option>
-            <option value="en">EN</option>
-          </select>
+        <div class="langSwitcher" id="languageSwitcher">
+          <button type="button"
+                  class="langButton"
+                  id="languageButton"
+                  aria-haspopup="listbox"
+                  aria-expanded="false"
+                  aria-controls="languageMenu"
+                  aria-label="Language"
+                  translate="no">
+            <span class="langButtonValue" id="languageValue" lang="en" translate="no">NL</span>
+            <svg class="chevIcon" width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <path d="M3.5 5L7 8.5L10.5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <ul class="langMenu" id="languageMenu" role="listbox" aria-labelledby="languageButton" hidden>
+            <li class="langMenuItem" role="option" data-lang="nl" tabindex="-1" aria-selected="true">
+              <span class="langMenuLabel">Nederlands</span>
+              <svg class="langMenuCheck" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                <path d="M3 7.5L6 10.5L11 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </li>
+            <li class="langMenuItem" role="option" data-lang="en" tabindex="-1" aria-selected="false">
+              <span class="langMenuLabel">English</span>
+              <svg class="langMenuCheck" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                <path d="M3 7.5L6 10.5L11 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </li>
+          </ul>
         </div>
+        <span class="topDivider" aria-hidden="true"></span>
         <div class="rightLogo" title="Geonovum">
           <img id="geonovumLogo"
                src="/Assets/GEONOVUM_LOGO.bmp"
@@ -61,51 +83,56 @@
               <span class="badge">CBS 2025</span>
             </div>
 
-            <div class="selectedLine" id="selInfo" style="margin-top:0;margin-bottom:10px;"></div>
+            <div class="areaBreadcrumb" id="selInfo" aria-live="polite"></div>
 
-            <label for="selProvincie" id="labelProvincie">Provincie</label>
-            <select id="selProvincie" disabled>
-              <option value="">Provincies laden…</option>
-            </select>
-
-            <div class="labelRow">
-              <label for="selGemeente" id="labelGemeente">Gemeente</label>
-              <button type="button" class="layerIconBtn" id="toggleGemeenteLayer" title="Gemeentelaag verbergen" aria-label="Gemeentelaag verbergen" aria-pressed="true">
-                <span class="srOnly">Gemeentelaag zichtbaar</span>
-                <svg class="iconEye" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="3.2"/></svg>
-                <svg class="iconEyeOff" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 6.3A11.6 11.6 0 0 1 12 6c6.5 0 10 6 10 6a17.3 17.3 0 0 1-4 4.3"/><path d="M6.2 6.7C3.7 8.3 2 12 2 12s3.5 6 10 6c1.5 0 2.8-.3 4-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
-              </button>
-            </div>
-            <select id="selGemeente" disabled>
-              <option value="">Selecteer eerst een provincie</option>
-            </select>
-
-            <div class="row2" style="margin-top:10px;">
-              <div>
-                <div class="labelRow" style="margin-top:0;">
-                  <label for="selWijk" id="labelWijk">Wijk</label>
-                  <button type="button" class="layerIconBtn" id="toggleWijkLayer" title="Wijklaag verbergen" aria-label="Wijklaag verbergen" aria-pressed="true">
-                    <span class="srOnly">Wijklaag zichtbaar</span>
-                    <svg class="iconEye" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="3.2"/></svg>
-                    <svg class="iconEyeOff" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 6.3A11.6 11.6 0 0 1 12 6c6.5 0 10 6 10 6a17.3 17.3 0 0 1-4 4.3"/><path d="M6.2 6.7C3.7 8.3 2 12 2 12s3.5 6 10 6c1.5 0 2.8-.3 4-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
-                  </button>
-                </div>
-                <select id="selWijk" disabled>
-                  <option value="">Selecteer eerst een gemeente</option>
+            <div class="areaField">
+              <label for="selProvincie" id="labelProvincie">Provincie</label>
+              <div class="areaInputGroup">
+                <select id="selProvincie" aria-labelledby="labelProvincie" disabled>
+                  <option value="">Provincies laden…</option>
                 </select>
               </div>
-              <div>
-                <div class="labelRow" style="margin-top:0;">
-                  <label for="selBuurt" id="labelBuurt">Buurt</label>
-                  <button type="button" class="layerIconBtn" id="toggleBuurtLayer" title="Buurtlaag verbergen" aria-label="Buurtlaag verbergen" aria-pressed="true">
-                    <span class="srOnly">Buurtlaag zichtbaar</span>
-                    <svg class="iconEye" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="3.2"/></svg>
-                    <svg class="iconEyeOff" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 6.3A11.6 11.6 0 0 1 12 6c6.5 0 10 6 10 6a17.3 17.3 0 0 1-4 4.3"/><path d="M6.2 6.7C3.7 8.3 2 12 2 12s3.5 6 10 6c1.5 0 2.8-.3 4-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
-                  </button>
-                </div>
-                <select id="selBuurt" disabled>
+            </div>
+
+            <div class="areaField">
+              <label for="selGemeente" id="labelGemeente">Gemeente</label>
+              <div class="areaInputGroup areaInputGroup--withEye">
+                <select id="selGemeente" aria-labelledby="labelGemeente" disabled>
+                  <option value="">Selecteer eerst een provincie</option>
+                </select>
+                <button type="button" class="layerIconBtn" id="toggleGemeenteLayer" title="Gemeentelaag verbergen" aria-label="Gemeentelaag verbergen" aria-pressed="true">
+                  <span class="srOnly">Gemeentelaag zichtbaar</span>
+                  <svg class="iconEye" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="3.2"/></svg>
+                  <svg class="iconEyeOff" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 6.3A11.6 11.6 0 0 1 12 6c6.5 0 10 6 10 6a17.3 17.3 0 0 1-4 4.3"/><path d="M6.2 6.7C3.7 8.3 2 12 2 12s3.5 6 10 6c1.5 0 2.8-.3 4-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="areaField">
+              <label for="selWijk" id="labelWijk">Wijk</label>
+              <div class="areaInputGroup areaInputGroup--withEye">
+                <select id="selWijk" aria-labelledby="labelWijk" disabled>
+                  <option value="">Selecteer eerst een gemeente</option>
+                </select>
+                <button type="button" class="layerIconBtn" id="toggleWijkLayer" title="Wijklaag verbergen" aria-label="Wijklaag verbergen" aria-pressed="true">
+                  <span class="srOnly">Wijklaag zichtbaar</span>
+                  <svg class="iconEye" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="3.2"/></svg>
+                  <svg class="iconEyeOff" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 6.3A11.6 11.6 0 0 1 12 6c6.5 0 10 6 10 6a17.3 17.3 0 0 1-4 4.3"/><path d="M6.2 6.7C3.7 8.3 2 12 2 12s3.5 6 10 6c1.5 0 2.8-.3 4-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="areaField">
+              <label for="selBuurt" id="labelBuurt">Buurt</label>
+              <div class="areaInputGroup areaInputGroup--withEye">
+                <select id="selBuurt" aria-labelledby="labelBuurt" disabled>
                   <option value="">Selecteer eerst een wijk</option>
                 </select>
+                <button type="button" class="layerIconBtn" id="toggleBuurtLayer" title="Buurtlaag verbergen" aria-label="Buurtlaag verbergen" aria-pressed="true">
+                  <span class="srOnly">Buurtlaag zichtbaar</span>
+                  <svg class="iconEye" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="3.2"/></svg>
+                  <svg class="iconEyeOff" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 6.3A11.6 11.6 0 0 1 12 6c6.5 0 10 6 10 6a17.3 17.3 0 0 1-4 4.3"/><path d="M6.2 6.7C3.7 8.3 2 12 2 12s3.5 6 10 6c1.5 0 2.8-.3 4-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
+                </button>
               </div>
             </div>
 
