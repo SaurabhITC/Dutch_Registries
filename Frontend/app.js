@@ -243,6 +243,9 @@
           gebruiksdoelBijeenkomstfunctie: "Bijeenkomstfunctie",
           gebruiksdoelCelfunctie: "Celfunctie",
           gebruiksdoelOverigeGebruiksfunctie: "Overige gebruiksfunctie",
+          reportDownload: "Rapport downloaden",
+          reportDownloadInProgress: "Rapport wordt gegenereerd…",
+          reportDownloadFailed: "Rapport genereren mislukt. Probeer het opnieuw.",
           formatLocale: "nl-NL"
         },
         en: {
@@ -384,6 +387,9 @@
           gebruiksdoelBijeenkomstfunctie: "Assembly",
           gebruiksdoelCelfunctie: "Detention",
           gebruiksdoelOverigeGebruiksfunctie: "Other use",
+          reportDownload: "Download report",
+          reportDownloadInProgress: "Generating report…",
+          reportDownloadFailed: "Report generation failed. Please try again.",
           formatLocale: "en-GB"
         }
       };
@@ -551,6 +557,11 @@
         updateLegendContext();
         setText('bagSummaryTitle', tr('bagSummaryTitle'));
         setText('bagSummaryBadge', tr('bagSummaryBadge'));
+        const reportBtnEl = document.getElementById('reportDownloadBtn');
+        if (reportBtnEl){
+          reportBtnEl.setAttribute('aria-label', tr('reportDownload'));
+          reportBtnEl.title = tr('reportDownload');
+        }
         if (bagSummaryBodyEl && !bagSummaryBodyEl.dataset.dynamic) bagSummaryBodyEl.textContent = tr('bagSummaryChooseArea');
         overviewModal?.setAttribute('aria-label', tr('overviewDialogLabel'));
         if (overviewBtn) overviewBtn.title = tr('overviewBtnTitle');
@@ -709,12 +720,102 @@
         if (!anyAreaSelected || !anyBagLayerActive || !sections.length){
           bagSummaryCardEl.style.display = 'none';
           delete bagSummaryBodyEl.dataset.dynamic;
+          updateReportButtonVisibility();
           return;
         }
 
         bagSummaryCardEl.style.display = 'block';
         bagSummaryBodyEl.dataset.dynamic = '1';
         bagSummaryBodyEl.innerHTML = sections.join('<div style="height:1px;background:rgba(15,23,42,0.08);margin:12px 0;"></div>');
+        updateReportButtonVisibility();
+      }
+
+      function updateReportButtonVisibility(){
+        const btn = document.getElementById('reportDownloadBtn');
+        if (!btn) return;
+        const level = (typeof selectedAreaLevel === 'function') ? selectedAreaLevel() : '';
+        const visible = (level === 'wijk' || level === 'buurt');
+        btn.hidden = !visible;
+        if (!visible){
+          const errEl = document.getElementById('reportDownloadError');
+          if (errEl){ errEl.hidden = true; errEl.textContent = ''; }
+        }
+      }
+
+      async function generateReport(){
+        const btn = document.getElementById('reportDownloadBtn');
+        const errEl = document.getElementById('reportDownloadError');
+        if (!btn) return;
+        const level = (typeof selectedAreaLevel === 'function') ? selectedAreaLevel() : '';
+        if (level !== 'wijk' && level !== 'buurt') return;
+        const areaFeature = (typeof selectedAreaFeature === 'function') ? selectedAreaFeature() : null;
+        if (!areaFeature){ return; }
+
+        if (errEl){ errEl.hidden = true; errEl.textContent = ''; }
+        btn.disabled = true;
+        btn.classList.add('is-loading');
+        btn.setAttribute('aria-busy', 'true');
+        btn.title = tr('reportDownloadInProgress');
+
+        const props = areaFeature.properties || {};
+        const areaId = String(props._statcode || '').trim().toUpperCase();
+        const areaName = String(props._statnaam || areaId || '').trim();
+
+        const gmStatcode = state.gemeenteStatcode;
+        const pvStatcode = state.provinceStatcode;
+        const municipalityName = gmStatcode ? (gemeenteByStatcode.get(gmStatcode)?.properties?._statnaam || '') : '';
+        const provinceName = pvStatcode ? (provinceByStatcode.get(pvStatcode)?.properties?._statnaam || '') : '';
+        const bounds = geojsonBounds(areaFeature);
+        const bbox = bounds
+          ? [bounds[0][0], bounds[0][1], bounds[1][0], bounds[1][1]]
+          : [];
+
+        const body = {
+          area_type: level,
+          area_id: areaId,
+          area_name: areaName,
+          parent_municipality: municipalityName,
+          parent_province: provinceName,
+          layers: activeBagKeys(),
+          language: currentLang,
+          bbox,
+        };
+
+        try {
+          const response = await fetch(`${BACKEND_BASE_URL}/api/report/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          if (!response.ok){
+            throw new Error(`HTTP ${response.status}`);
+          }
+          const blob = await response.blob();
+          const dispo = response.headers.get('Content-Disposition') || '';
+          const m = /filename="([^"]+)"/.exec(dispo);
+          const today = new Date();
+          const datePart = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
+          const filename = (m && m[1]) || `${(areaName || areaId || 'report').replace(/[^A-Za-z0-9_-]/g,'_')}_${datePart}.pdf`;
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 2000);
+        } catch (err){
+          console.error('report generation failed', err);
+          if (errEl){
+            errEl.textContent = tr('reportDownloadFailed');
+            errEl.hidden = false;
+          }
+        } finally {
+          btn.disabled = false;
+          btn.classList.remove('is-loading');
+          btn.removeAttribute('aria-busy');
+          btn.title = tr('reportDownload');
+        }
       }
 
 
@@ -999,12 +1100,34 @@
         return feats && feats.length ? feats[0] : null;
       }
 
+      function renderUrlArrayHtml(arr){
+        if (!Array.isArray(arr) || arr.length === 0) return null;
+        if (!arr.every(item => typeof item === 'string' && /^https?:\/\//i.test(item.trim()))) return null;
+        if (arr.length === 1){
+          const href = escapeHtml(arr[0].trim());
+          return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="text-decoration:underline;">${escapeHtml('Link')}</a>`;
+        }
+        return arr
+          .map((url, i) => {
+            const href = escapeHtml(url.trim());
+            return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="text-decoration:underline;">${escapeHtml('Link ' + (i + 1))}</a>`;
+          })
+          .join(', ');
+      }
+
       function popupValueHtml(value){
         if (value === undefined) return undefined;
         if (value === null) return 'null';
 
         if (typeof value === 'string'){
           const trimmed = value.trim();
+          if (trimmed.startsWith('[') && trimmed.endsWith(']')){
+            try{
+              const parsed = JSON.parse(trimmed);
+              const html = renderUrlArrayHtml(parsed);
+              if (html !== null) return html;
+            }catch(_){ /* fall through */ }
+          }
           if (/^https?:\/\//i.test(trimmed)){
             const href = escapeHtml(trimmed);
             return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="text-decoration:underline;">Link</a>`;
@@ -1014,6 +1137,11 @@
 
         if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint'){
           return escapeHtml(String(value));
+        }
+
+        if (Array.isArray(value)){
+          const html = renderUrlArrayHtml(value);
+          if (html !== null) return html;
         }
 
         try{
@@ -3099,6 +3227,8 @@ function clearBelowProvince(){ state.gemeenteStatcode = ""; state.gmCode = ""; s
         map.on("click", e => { const dataFeature = queryDataFeature(e.point); if (dataFeature){ openBagPopup(dataFeature, e.lngLat); return; } const buurt = featureUnderPointer(e.point, "cbs-buurt-hit"); if (buurt){ closeBagPopup(); return selectBuurtByFeature(buurt, true); } const wijk = featureUnderPointer(e.point, "cbs-wijk-hit"); if (wijk){ closeBagPopup(); return selectWijkByFeature(wijk, true); } const gemeente = featureUnderPointer(e.point, "cbs-gemeente-hit"); if (gemeente){ closeBagPopup(); return selectMunicipalityByFeature(gemeente, true); } const provincie = featureUnderPointer(e.point, "cbs-provincie-hit"); if (provincie){ closeBagPopup(); return selectProvinceByFeature(provincie, true); } closeBagPopup(); });
         syncBagAccordion(false);
         bagAccordionToggleEl?.addEventListener("click", toggleBagAccordion);
+        document.getElementById('reportDownloadBtn')?.addEventListener('click', () => { generateReport(); });
+        updateReportButtonVisibility();
         map.on("mousemove", e => { const hit = queryDataFeature(e.point) || featureUnderPointer(e.point, "cbs-buurt-hit") || featureUnderPointer(e.point, "cbs-wijk-hit") || featureUnderPointer(e.point, "cbs-gemeente-hit") || featureUnderPointer(e.point, "cbs-provincie-hit"); map.getCanvas().style.cursor = hit ? "pointer" : ""; });
       });
       map.on("error", e => console.error("MapLibre error:", e?.error || e));
