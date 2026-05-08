@@ -81,7 +81,7 @@
       const legendWijkRowEl = document.getElementById("legendWijkRow");
       const legendBuurtRowEl = document.getElementById("legendBuurtRow");
       const legendDataSectionEl = document.getElementById("legendDataSection");
-      const legendBagRowEl = document.getElementById("legendBagRow");
+      const legendBagRowsEl = document.getElementById("legendBagRows");
       const bagSummaryCardEl = document.getElementById("bagSummaryCard");
       const bagSummaryTitleEl = document.getElementById("bagSummaryTitle");
       const bagSummaryBodyEl = document.getElementById("bagSummaryBody");
@@ -1166,14 +1166,31 @@
         const visibleKeys = activeKeys.filter(key => (countsByKey[key] || 0) > 0);
         const keysForLabel = visibleKeys.length ? visibleKeys : activeKeys;
 
-        if (!showMap || !keysForLabel.length){
-          if (legendBagRowEl) legendBagRowEl.style.display = 'none';
+        if (!legendBagRowsEl){
           updateLegendContext();
           return;
         }
 
-        setText('legendBag', `BAG ${keysForLabel.map(key => collectionLabel(BAG_COLLECTIONS[key])).join(' / ')}`);
-        if (legendBagRowEl) legendBagRowEl.style.display = 'flex';
+        if (!showMap || !keysForLabel.length){
+          legendBagRowsEl.innerHTML = '';
+          updateLegendContext();
+          return;
+        }
+
+        const orderedKeys = ALL_BAG_KEYS.filter(k => keysForLabel.includes(k));
+        const rows = orderedKeys.map(key => {
+          const cfg = BAG_COLLECTIONS[key];
+          if (!cfg) return '';
+          const label = escapeHtml(collectionLabel(cfg));
+          if (cfg.geometry === 'point'){
+            const fill = cfg.circle || '#000000';
+            return `<div class="legendRow"><span class="legendBagSwatch legendBagSwatch--point" style="background:${fill};border-color:${fill};"></span><span>${label}</span></div>`;
+          }
+          const fill = cfg.fill || '#ffffff';
+          const line = cfg.line || 'rgba(15,23,42,0.18)';
+          return `<div class="legendRow"><span class="legendBagSwatch" style="background:${fill};border-color:${line};"></span><span>${label}</span></div>`;
+        }).join('');
+        legendBagRowsEl.innerHTML = rows;
         updateLegendContext();
       }
 
@@ -2396,7 +2413,7 @@
         if (legendWijkRowEl) legendWijkRowEl.style.display = showWijk ? 'flex' : 'none';
         if (legendBuurtRowEl) legendBuurtRowEl.style.display = showBuurt ? 'flex' : 'none';
         if (legendBoundarySectionEl) legendBoundarySectionEl.style.display = (showNational || showProvince || showMunicipality || showWijk || showBuurt) ? 'block' : 'none';
-        const bagVisible = !!legendBagRowEl && legendBagRowEl.style.display !== 'none';
+        const bagVisible = !!legendBagRowsEl && legendBagRowsEl.children.length > 0;
         if (legendDataSectionEl) legendDataSectionEl.style.display = bagVisible ? 'block' : 'none';
         const vizLegendVisible = !!activeMapVisualization;
         if (legendEl) legendEl.style.display = (showNational || showProvince || showMunicipality || showWijk || showBuurt || bagVisible || vizLegendVisible) ? 'block' : 'none';
