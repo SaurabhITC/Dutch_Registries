@@ -183,6 +183,9 @@ async def rebuild_bag_pand_summary(
     municipality_retry_attempts: int = Query(default=2, ge=1, le=10),
     retry_failed_municipalities: bool = Query(default=True),
 ) -> Dict[str, Any]:
+    if not settings.enable_rebuild_endpoint:
+        raise HTTPException(status_code=404, detail="Not Found")
+
     if _rebuild_lock.locked():
         raise HTTPException(
             status_code=409,

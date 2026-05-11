@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     yearcode: int = 2025
     summary_max_age_seconds: int = 24 * 60 * 60
     log_level: str = "INFO"
+    enable_rebuild_endpoint: bool = False
 
     @field_validator("cors_origins", mode="before")
     @classmethod

@@ -152,6 +152,13 @@ class BackendSmokeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertGreater(len(response.json()["features"]), 0)
 
+    def test_rebuild_endpoint_returns_404_when_disabled(self) -> None:
+        # By default, settings.enable_rebuild_endpoint is False.
+        # The route should respond with 404 like a nonexistent endpoint.
+        response = self.client.post("/api/bag/pand/summary/rebuild")
+
+        self.assertEqual(response.status_code, 404)
+
 
 if __name__ == "__main__":
     unittest.main()
