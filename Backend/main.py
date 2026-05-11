@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from Backend.cache import (
     load_bag_features_from_cache,
     save_bag_features_to_cache,
+    sweep_stale_cache_files,
 )
 from Backend.config import settings
 from Backend.logging_setup import get_logger
@@ -59,6 +60,15 @@ CORS_ORIGINS = settings.cors_origins
 async def lifespan(app: FastAPI):
     await startup_http_client()
     load_bag_pand_summary_store()
+    try:
+        deleted = sweep_stale_cache_files()
+        if deleted > 0:
+            logger.info(
+                "startup cache sweep: removed %d stale BAG feature cache files",
+                deleted,
+            )
+    except Exception as exc:
+        logger.warning("startup cache sweep failed: %s", exc)
     try:
         yield
     finally:

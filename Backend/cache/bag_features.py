@@ -26,6 +26,61 @@ def _is_cacheable(level: str) -> bool:
     return str(level or "").strip().lower() in {"wijk", "buurt"}
 
 
+def sweep_stale_cache_files() -> int:
+    """
+    Walk BAG_FEATURE_CACHE_DIR and remove cache files that are past TTL,
+    have a stale cache_version, or are unparseable. Best-effort: any failure
+    for a single file is logged and skipped; the sweep does not raise.
+
+    Returns the number of files deleted (for logging).
+    """
+    if not BAG_FEATURE_CACHE_DIR.exists():
+        return 0
+
+    deleted = 0
+    now = time.time()
+
+    for path in BAG_FEATURE_CACHE_DIR.rglob("*.json"):
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            try:
+                path.unlink()
+                deleted += 1
+            except Exception as exc:
+                logger.warning(
+                    "failed to remove unparseable cache file %s: %s",
+                    path,
+                    exc,
+                )
+            continue
+
+        try:
+            version_ok = (
+                int(data.get("cache_version") or 0) == BAG_FEATURE_CACHE_VERSION
+            )
+            saved_at = data.get("saved_at")
+            if not isinstance(saved_at, (int, float)):
+                age_ok = False
+            else:
+                age_ok = (now - float(saved_at)) <= BAG_FEATURE_CACHE_TTL_SECONDS
+
+            if version_ok and age_ok:
+                continue
+
+            path.unlink()
+            deleted += 1
+        except Exception as exc:
+            logger.warning(
+                "failed to evaluate / remove cache file %s: %s",
+                path,
+                exc,
+            )
+
+    return deleted
+
+
 def load_bag_features_from_cache(
     object_type: str,
     level: str,

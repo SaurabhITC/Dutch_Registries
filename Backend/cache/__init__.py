@@ -3,6 +3,7 @@ from .bag_features import (
     BAG_FEATURE_CACHE_VERSION,
     load_bag_features_from_cache,
     save_bag_features_to_cache,
+    sweep_stale_cache_files,
 )
 from .disk import (
     ADMIN_CACHE_VERSION,
@@ -31,4 +32,5 @@ __all__ = [
     "BAG_FEATURE_CACHE_TTL_SECONDS",
     "load_bag_features_from_cache",
     "save_bag_features_to_cache",
+    "sweep_stale_cache_files",
 ]
