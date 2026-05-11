@@ -27,9 +27,9 @@ ENV GEONOVUM_FRONTEND_DIR=/app/Frontend
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8000
 
-EXPOSE 8000
+EXPOSE ${PORT}
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD curl -fsS http://localhost:8000/health || exit 1
+    CMD curl -fsS http://localhost:${PORT}/health || exit 1
 
-CMD ["uvicorn", "Backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+CMD uvicorn Backend.main:app --host 0.0.0.0 --port ${PORT} --workers 1

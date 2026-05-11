@@ -30,3 +30,12 @@ Proposal_documents/
 
 # Runtime cache (delivered separately and bind-mounted at runtime)
 data/
+
+# IDE / tooling state
+.claude/
+.vscode/
+.idea/
+
+# Git metadata (small, but build-time only)
+.gitignore
+.gitattributes
