@@ -10,7 +10,7 @@ export const PDOK_STYLE_URL = "https://api.pdok.nl/kadaster/brk-bestuurlijke-geb
 export const LAND_FEATURES_URL = "https://api.pdok.nl/kadaster/brk-bestuurlijke-gebieden/ogc/v1/collections/landgebied/items?f=json&limit=10";
 export const BRT_TILES = "https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/{z}/{x}/{y}.png";
 export const LUCHTFOTO_WMTS_CAPS = "https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0?request=GetCapabilities&service=WMTS";
-export const WORLD_TOPO = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json";
+export const WORLD_TOPO = "/vendor/countries-50m.json";
 
 export const BAG_COLLECTIONS = {
   pand: {

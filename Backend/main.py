@@ -350,6 +350,7 @@ async def generate_report(payload: ReportRequest) -> Response:
 
 
 app.mount("/Assets", StaticFiles(directory=str(FRONTEND_DIR / "Assets")), name="assets")
+app.mount("/vendor", StaticFiles(directory=str(FRONTEND_DIR / "vendor")), name="vendor")
 
 
 @app.get("/")
