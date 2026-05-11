@@ -24,7 +24,7 @@ from reportlab.platypus import (
 from shapely.geometry import shape
 
 from Backend.domain.admin import get_area_feature
-from Backend.domain.geometry import bbox_from_feature, feature_intersects_area
+from Backend.domain.geometry import bbox_from_feature, feature_assigned_to_area
 from Backend.pdok import BAG_COLLECTION_URLS, BAG_PAND_URL, fetch_all_features
 
 from .charts import (
@@ -67,7 +67,7 @@ async def _fetch_bag_features(
     return [
         f
         for f in (raw_fc.get("features") or [])
-        if feature_intersects_area(f, area_feature)
+        if feature_assigned_to_area(f, area_feature)
     ]
 
 

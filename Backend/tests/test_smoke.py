@@ -7,6 +7,10 @@ from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 
 from Backend import main
+from Backend.domain.geometry import (
+    feature_assigned_to_area,
+    feature_intersects_area,
+)
 from Backend.paths import (
     ADMIN_BUURTEN_DIR,
     ADMIN_MUNICIPALITIES_BY_PROVINCE_DIR,
@@ -158,6 +162,62 @@ class BackendSmokeTests(unittest.TestCase):
         response = self.client.post("/api/bag/pand/summary/rebuild")
 
         self.assertEqual(response.status_code, 404)
+
+    def test_feature_assigned_to_area_uses_representative_point(self) -> None:
+        """A polygon straddling a wijk boundary is assigned to exactly
+        one wijk — the one its representative point falls in. The legacy
+        intersect rule would have placed it in both."""
+        area_left = {
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]]],
+            }
+        }
+        area_right = {
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[1.0, 0.0], [2.0, 0.0], [2.0, 1.0], [1.0, 1.0], [1.0, 0.0]]],
+            }
+        }
+        # A building straddling x=1.0, with more area on the right side.
+        building = {
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[0.9, 0.4], [1.2, 0.4], [1.2, 0.6], [0.9, 0.6], [0.9, 0.4]]],
+            }
+        }
+
+        # New rule: assigned to right (representative point is on the right side)
+        self.assertFalse(feature_assigned_to_area(building, area_left))
+        self.assertTrue(feature_assigned_to_area(building, area_right))
+
+        # Legacy rule (verification of the bug we're fixing): intersects both
+        self.assertTrue(feature_intersects_area(building, area_left))
+        self.assertTrue(feature_intersects_area(building, area_right))
+
+    def test_feature_assigned_to_area_handles_point_geometries(self) -> None:
+        """Address points, ligplaats, and standplaats are Point
+        geometries. They should be assigned to whichever wijk contains
+        their location, with no ambiguity."""
+        area_left = {
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]]],
+            }
+        }
+        area_right = {
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[1.0, 0.0], [2.0, 0.0], [2.0, 1.0], [1.0, 1.0], [1.0, 0.0]]],
+            }
+        }
+        point_in_left = {"geometry": {"type": "Point", "coordinates": [0.5, 0.5]}}
+        point_in_right = {"geometry": {"type": "Point", "coordinates": [1.5, 0.5]}}
+
+        self.assertTrue(feature_assigned_to_area(point_in_left, area_left))
+        self.assertFalse(feature_assigned_to_area(point_in_left, area_right))
+        self.assertFalse(feature_assigned_to_area(point_in_right, area_left))
+        self.assertTrue(feature_assigned_to_area(point_in_right, area_right))
 
 
 if __name__ == "__main__":

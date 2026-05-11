@@ -26,7 +26,7 @@ from Backend.domain import (
     load_provinces,
     load_wijken_for_municipality,
     bbox_from_feature,
-    feature_intersects_area,
+    feature_assigned_to_area,
     wijk_body,
 )
 from Backend.domain.bag_summary import (
@@ -231,7 +231,7 @@ async def get_bag_pand(
     raw_fc = await fetch_all_features(url, ttl_seconds=15 * 60)
     filtered_features = [
         f for f in raw_fc.get("features", []) or []
-        if feature_intersects_area(f, area_feature)
+        if feature_assigned_to_area(f, area_feature)
     ]
 
     result = {

@@ -11,7 +11,7 @@ from Backend.paths import BAG_FEATURE_CACHE_DIR
 
 logger = get_logger(__name__)
 
-BAG_FEATURE_CACHE_VERSION = 1
+BAG_FEATURE_CACHE_VERSION = 2
 BAG_FEATURE_CACHE_TTL_SECONDS = 24 * 60 * 60
 
 

@@ -9,6 +9,7 @@ from .codes import (
 )
 from .geometry import (
     bbox_from_feature,
+    feature_assigned_to_area,
     feature_intersects_area,
     find_best_province_statcode_for_municipality,
 )
@@ -38,6 +39,7 @@ __all__ = [
     "wijk_body",
     "preprocess_features",
     "bbox_from_feature",
+    "feature_assigned_to_area",
     "feature_intersects_area",
     "find_best_province_statcode_for_municipality",
     "get_cached_admin_data",

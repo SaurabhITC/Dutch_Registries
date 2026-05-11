@@ -19,7 +19,7 @@ from Backend.domain.codes import (
 )
 from Backend.domain.geometry import (
     bbox_from_feature,
-    feature_intersects_area,
+    feature_assigned_to_area,
     find_best_province_statcode_for_municipality,
 )
 from Backend.paths import (
@@ -417,7 +417,7 @@ def feature_matches_area_for_bag_object(
     area_feature: Dict[str, Any],
     object_type: str,
 ) -> bool:
-    return feature_intersects_area(feature, area_feature)
+    return feature_assigned_to_area(feature, area_feature)
 
 
 async def count_bag_pand_for_area(level: str, statcode: str) -> int:
@@ -434,7 +434,7 @@ async def count_bag_pand_for_area(level: str, statcode: str) -> int:
     count = sum(
         1
         for f in raw_fc.get("features", []) or []
-        if feature_intersects_area(f, area_feature)
+        if feature_assigned_to_area(f, area_feature)
     )
 
     cache_set(cache_key, count, 15 * 60)
