@@ -21,6 +21,15 @@ import {
   OPPERVLAKTE_BUCKETS,
   GEBRUIKSDOEL_CATEGORIES,
 } from './js/config.js';
+import {
+  fetchWithTimeout,
+  fetchBackendJson,
+  runWithConcurrencyLimit,
+  loadWithAutoRetry,
+  loadBagFeaturesForArea,
+  loadBagSummaryForArea,
+  postReportRequest,
+} from './js/api.js';
 
     (function boot(){
       (function initLogo(){
@@ -232,26 +241,6 @@ import {
       const bagFeatureCache = new Map();
       let bagSummarySectionHtml = "";
 
-      async function runWithConcurrencyLimit(items, limit, worker){
-        const results = new Array(items.length);
-        if (!items.length) return results;
-        let next = 0;
-        const poolSize = Math.max(1, Math.min(limit, items.length));
-        async function poolWorker(){
-          while (true){
-            const idx = next++;
-            if (idx >= items.length) return;
-            results[idx] = await worker(items[idx], idx);
-          }
-        }
-        const workers = [];
-        for (let i = 0; i < poolSize; i++){
-          workers.push(poolWorker());
-        }
-        await Promise.all(workers);
-        return results;
-      }
-
       // Map visualization state - declared here (top-of-file) because
       // updateLegendContext reads `activeMapVisualization` during boot via
       // applyLanguageText, which would TDZ-throw if the let lived inside
@@ -352,20 +341,10 @@ import {
         };
 
         try {
-          const response = await fetch(`${BACKEND_BASE_URL}/api/report/generate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-          });
-          if (!response.ok){
-            throw new Error(`HTTP ${response.status}`);
-          }
-          const blob = await response.blob();
-          const dispo = response.headers.get('Content-Disposition') || '';
-          const m = /filename="([^"]+)"/.exec(dispo);
+          const { blob, filename: serverFilename } = await postReportRequest(body);
           const today = new Date();
           const datePart = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
-          const filename = (m && m[1]) || `${(areaName || areaId || 'report').replace(/[^A-Za-z0-9_-]/g,'_')}_${datePart}.pdf`;
+          const filename = serverFilename || `${(areaName || areaId || 'report').replace(/[^A-Za-z0-9_-]/g,'_')}_${datePart}.pdf`;
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
@@ -389,10 +368,6 @@ import {
       }
 
 
-      function waitMs(ms){
-        return new Promise(resolve => setTimeout(resolve, ms));
-      }
-
       function retryAttemptMessage(label, attempt, totalAttempts, delayMs){
         return `${tr('summaryRetryingPrefix')}${label}. ${tr('summaryRetryAttemptPrefix')}${attempt}${tr('summaryRetryAttemptSeparator')}${totalAttempts}. ${tr('summaryRetryWaitPrefix')}${Math.ceil(delayMs / 1000)}${tr('summaryRetryWaitSuffix')}`;
       }
@@ -400,26 +375,6 @@ import {
       function retryFailedMessage(labels){
         const text = Array.isArray(labels) ? labels.join(', ') : String(labels || '');
         return `${tr('summaryRetryFailedPrefix')}${text}.`;
-      }
-
-      async function loadWithAutoRetry({ loadFn, onRetry, delaysMs = AUTO_RETRY_DELAYS_MS }){
-        const totalAttempts = delaysMs.length + 1;
-        let lastError = null;
-        for (let i = 0; i < totalAttempts; i++){
-          try{
-            const data = await loadFn();
-            return { ok: true, data, attempts: i + 1 };
-          }catch(err){
-            lastError = err;
-            if (i >= delaysMs.length) break;
-            const delayMs = delaysMs[i];
-            if (typeof onRetry === 'function'){
-              onRetry({ attempt: i + 2, totalAttempts, delayMs, error: err });
-            }
-            await waitMs(delayMs);
-          }
-        }
-        return { ok: false, error: lastError, attempts: totalAttempts };
       }
 
       function selectedAreaFeature(){
@@ -468,8 +423,6 @@ import {
       function prettyName(props){ return String(props?.statnaam || props?.naam || props?.name || ""); }
       function prettyStatcode(props){ return String(props?.statcode || props?.code || ""); }
       
-      async function fetchWithTimeout(url, ms=7000){ const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), ms); try{ return await fetch(url, { signal: ctrl.signal }); } finally { clearTimeout(t); } }
-      async function fetchBackendJson(path, ms=20000){ const url = `${BACKEND_BASE_URL}${path}`; const response = await fetchWithTimeout(url, ms); if (!response.ok) throw new Error(`Backend request failed: ${url} (${response.status})`); return await response.json(); }
       
       function geojsonBounds(feature){
         let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
@@ -937,65 +890,6 @@ import {
 
       function bagCacheKey(key, level, statcode){
         return `${key}:${level}:${statcode}`;
-      }
-
-      async function loadBagFeaturesForArea(key, areaFeature, level){
-        const cfg = BAG_COLLECTIONS[key];
-        const statcode = String(areaFeature?.properties?._statcode || '').trim();
-
-        if (!cfg || !statcode || !level) {
-          return {
-            type: 'FeatureCollection',
-            features: [],
-            _truncated: false,
-            _summaryCount: 0
-          };
-        }
-
-        const params = new URLSearchParams({ level, statcode });
-        const fc = await fetchBackendJson(
-          `/api/bag/${encodeURIComponent(key)}?${params.toString()}`,
-          60000
-        );
-
-        const features = fc?.features || [];
-        const summaryCount = Number.isFinite(fc?.count) ? fc.count : features.length;
-
-        return {
-          type: 'FeatureCollection',
-          features,
-          _truncated: !!fc?._truncated,
-          _summaryCount: summaryCount
-        };
-      }
-
-      async function loadBagSummaryForArea(key, areaFeature, level){
-        const cfg = BAG_COLLECTIONS[key];
-        const statcode = String(areaFeature?.properties?._statcode || '').trim();
-        if (!cfg || !statcode || !level) return { count: null };
-
-        // Optimistic per-type request. The backend currently only exposes
-        // /api/bag/pand/summary; other types return 404 today and will
-        // start returning real counts when the summary store is extended.
-        // 404 → null (caller renders the "Available at wijk/buurt level"
-        // placeholder). 5xx and other transient errors are thrown so the
-        // existing retry/skeleton path takes over.
-        const params = new URLSearchParams({ level, statcode });
-        const url = `${BACKEND_BASE_URL}/api/bag/${encodeURIComponent(key)}/summary?${params.toString()}`;
-        let response;
-        try {
-          response = await fetchWithTimeout(url, 60000);
-        } catch (err) {
-          throw new Error(`Backend request failed: ${url} (network)`);
-        }
-        if (response.status === 404){
-          return { count: null };
-        }
-        if (!response.ok){
-          throw new Error(`Backend request failed: ${url} (${response.status})`);
-        }
-        const summary = await response.json();
-        return { count: Number.isFinite(summary?.count) ? summary.count : null };
       }
 
       function getCurrentBagAreaFeature(){ return selectedAreaFeature(); }
