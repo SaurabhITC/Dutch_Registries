@@ -154,12 +154,19 @@ Backend/
 
 Frontend/
   index.html
-  app.js                   Main entry point (boot + map + state)
+  app.js                   Main controller (boot, event wiring, BAG pipeline)
   js/                      ES modules (loaded via type="module")
     i18n.js                NL/EN translations + language switcher
     config.js              Constants (URLs, palettes, etc.)
     api.js                 HTTP client + auto-retry
     charts.js              Chart.js orchestration + expand modal
+    popups.js              Popup HTML formatting (pure functions)
+    reports.js             PDF report UI orchestration
+    bagLayers.js           BAG map-source + style-layer infrastructure
+    areaSelection.js       Province/municipality/wijk/buurt dropdown logic
+    map.js                 MapLibre instance, basemap controls, boundary layers
+    legend.js              Info box, boundary legend, BAG summary card
+    uiState.js             Shared state containers (state, selectionState, etc.)
   vendor/                  Self-hosted libs (no CDN)
     maplibre-gl.{js,css}
     chart.umd.min.js
@@ -197,14 +204,37 @@ prefix, case-insensitive, comma-split for list types).
 
 ## Recent improvements
 
-The backend has been split into focused modules (`cache/`, `domain/`,
-`pdok/`), the FastAPI app uses a shared httpx connection pool with retry,
-and the on-disk caches now include version checks. The frontend is
-modularised into ES modules and self-hosts all third-party libraries
-(MapLibre, Chart.js, topojson-client, world atlas) — no runtime CDN
-dependency. Spatial assignment of BAG features to wijken/buurten now uses
-representative-point containment instead of geometric intersection, which
-means each feature belongs to exactly one area and counts add up correctly.
-The rebuild task is gated behind a CLI module rather than a public HTTP
-route, and API responses are gzip-compressed for ~5-10× transfer reduction
-on dense GeoJSON. See `git log` for the full chronology.
+The codebase has been substantially refactored. The backend is split into
+focused modules (`cache/`, `domain/`, `pdok/`, `report/`), the FastAPI app
+uses a shared httpx connection pool with retry, and on-disk caches now
+include version checks. API responses are gzip-compressed for ~5-10×
+transfer reduction on dense GeoJSON. Spatial assignment of BAG features
+to wijken/buurten now uses representative-point containment instead of
+geometric intersection, which means each feature belongs to exactly one
+area and counts add up correctly. The in-memory cache is now bounded
+(500-entry LRU) with disk sweep at startup. The rebuild task is gated
+behind a CLI module rather than a public HTTP route. Municipalities are
+loaded per-province on demand instead of national-scale.
+
+The frontend has been modularised: `app.js` is reduced from 1999 lines
+to 982 lines (51% reduction), with seven new ES modules under
+`Frontend/js/` (popups, reports, bagLayers, areaSelection, map, legend,
+uiState) handling their respective concerns. All third-party libraries
+(MapLibre, Chart.js, topojson-client, world atlas) are self-hosted — no
+runtime CDN dependency.
+
+See `git log` for the full chronology.
+
+## Known limitations
+
+- First request for an uncached province pulls the full national
+  municipality collection from PDOK (sliced in Python) because the CBS
+  `gemeente_niet_gegeneraliseerd` collection has no server-side province
+  filter. Subsequent province requests are served from per-province
+  on-disk cache. True server-side filtering is future work.
+- The frontend fires `/api/bag/{layer}/summary` requests at province and
+  municipality level even though those endpoints only return data at
+  wijk and buurt level (returns 404 by design). Browser console will
+  show 404s if BAG layers are toggled on at upper levels. No user-visible
+  breakage; the BAG summary card stays empty at those levels. Minor
+  frontend guard could suppress the requests.
