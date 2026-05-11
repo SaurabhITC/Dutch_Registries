@@ -39,6 +39,30 @@ from Backend.pdok import (
 )
 
 
+_statcode_index_cache: Dict[int, Dict[str, Dict[str, Any]]] = {}
+
+
+def _index_features_by_statcode(
+    features: List[Dict[str, Any]],
+) -> Dict[str, Dict[str, Any]]:
+    cache_key = id(features)
+    cached = _statcode_index_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    index: Dict[str, Dict[str, Any]] = {}
+    for feature in features:
+        statcode = str(feature.get("properties", {}).get("_statcode", "")).upper()
+        if not statcode:
+            continue
+        index[statcode] = feature
+
+    if len(_statcode_index_cache) > 64:
+        _statcode_index_cache.clear()
+    _statcode_index_cache[cache_key] = index
+    return index
+
+
 def get_cached_admin_data() -> Optional[Dict[str, Any]]:
     cached = cache_get("admin_data_v3")
     return cached if isinstance(cached, dict) else None
@@ -337,9 +361,10 @@ async def get_area_feature(level: str, statcode: str) -> Dict[str, Any]:
     else:
         raise HTTPException(status_code=400, detail="Invalid level")
 
-    for feature in features:
-        if str(feature.get("properties", {}).get("_statcode", "")).upper() == statcode:
-            return feature
+    index = _index_features_by_statcode(features)
+    feature = index.get(statcode)
+    if feature is not None:
+        return feature
 
     raise HTTPException(
         status_code=404,

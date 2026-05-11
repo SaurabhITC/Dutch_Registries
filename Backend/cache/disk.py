@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import contextlib
 import json
+import os
+import tempfile
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -11,6 +14,27 @@ from Backend.logging_setup import get_logger
 logger = get_logger(__name__)
 
 ADMIN_CACHE_VERSION = 1
+
+
+def atomic_write_json(path: Path, data: Any, *, indent: int = 2) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=str(path.parent),
+    )
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=indent)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, path)
+    except BaseException:
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(tmp_path)
+        raise
 
 
 def wrap_admin_cache_payload(
@@ -103,8 +127,6 @@ def save_admin_cache_file(
     parent_gmcode: Optional[str] = None,
     parent_statcode: Optional[str] = None,
 ) -> Dict[str, Any]:
-    path.parent.mkdir(parents=True, exist_ok=True)
-
     payload = wrap_admin_cache_payload(
         fc,
         level=level,
@@ -112,8 +134,7 @@ def save_admin_cache_file(
         parent_statcode=parent_statcode,
     )
 
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
+    atomic_write_json(path, payload)
 
     return fc
 
@@ -143,8 +164,6 @@ def load_municipality_to_province_map_file(path: Path) -> Dict[str, str]:
 
 
 def save_municipality_to_province_map_file(path: Path, mapping: Dict[str, str]) -> Dict[str, str]:
-    path.parent.mkdir(parents=True, exist_ok=True)
-
     cleaned: Dict[str, str] = {}
     for gm_statcode, pv_statcode in mapping.items():
         gm = str(gm_statcode).strip().upper()
@@ -152,7 +171,6 @@ def save_municipality_to_province_map_file(path: Path, mapping: Dict[str, str]) 
         if gm.startswith("GM") and pv.startswith("PV"):
             cleaned[gm] = pv
 
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(dict(sorted(cleaned.items())), f, ensure_ascii=False, indent=2)
+    atomic_write_json(path, dict(sorted(cleaned.items())))
 
     return cleaned

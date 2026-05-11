@@ -1,5 +1,6 @@
 from .disk import (
     ADMIN_CACHE_VERSION,
+    atomic_write_json,
     load_admin_cache_file,
     load_municipality_to_province_map_file,
     normalize_admin_cache_payload,
@@ -13,6 +14,7 @@ __all__ = [
     "cache_get",
     "cache_set",
     "ADMIN_CACHE_VERSION",
+    "atomic_write_json",
     "wrap_admin_cache_payload",
     "normalize_admin_cache_payload",
     "load_admin_cache_file",

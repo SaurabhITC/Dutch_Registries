@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from Backend.cache import atomic_write_json
 from Backend.config import settings
 from Backend.logging_setup import get_logger
 from Backend.domain import (
@@ -29,7 +30,13 @@ from Backend.domain import (
 )
 from Backend.domain.report import build_report_pdf
 from Backend.paths import SUMMARY_FILE
-from Backend.pdok import BAG_COLLECTION_URLS, BAG_PAND_URL, fetch_all_features
+from Backend.pdok import (
+    BAG_COLLECTION_URLS,
+    BAG_PAND_URL,
+    fetch_all_features,
+    shutdown_http_client,
+    startup_http_client,
+)
 
 logger = get_logger(__name__)
 
@@ -43,6 +50,10 @@ FRONTEND_DIR = settings.frontend_dir
 CORS_ORIGINS = settings.cors_origins
 
 _bag_pand_summary_store: Optional[Dict[str, Any]] = None
+
+# Serializes rebuild requests so two concurrent POSTs can't race on the same
+# in-memory store and summary file. Reads are not gated by this lock.
+_rebuild_lock = asyncio.Lock()
 
 
 def normalize_province_summary_entry(value: Any) -> Dict[str, Any]:
@@ -293,11 +304,8 @@ def load_bag_pand_summary_store() -> Dict[str, Any]:
 def save_bag_pand_summary_store(data: Dict[str, Any]) -> Dict[str, Any]:
     global _bag_pand_summary_store
 
-    SUMMARY_FILE.parent.mkdir(parents=True, exist_ok=True)
     normalized = normalize_summary_store(data)
-
-    with SUMMARY_FILE.open("w", encoding="utf-8") as f:
-        json.dump(normalized, f, ensure_ascii=False, indent=2)
+    atomic_write_json(SUMMARY_FILE, normalized)
 
     _bag_pand_summary_store = normalized
     return _bag_pand_summary_store
@@ -528,8 +536,12 @@ async def ensure_bag_pand_summary_store() -> Dict[str, Any]:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await startup_http_client()
     load_bag_pand_summary_store()
-    yield
+    try:
+        yield
+    finally:
+        await shutdown_http_client()
 
 
 app = FastAPI(title=APP_TITLE, version=APP_VERSION, lifespan=lifespan)
@@ -656,12 +668,20 @@ async def rebuild_bag_pand_summary(
     municipality_retry_attempts: int = Query(default=2, ge=1, le=10),
     retry_failed_municipalities: bool = Query(default=True),
 ) -> Dict[str, Any]:
-    result = await build_bag_pand_summary_store(
-        province_statcode=province_statcode,
-        resume=resume,
-        municipality_retry_attempts=municipality_retry_attempts,
-        retry_failed_municipalities=retry_failed_municipalities,
-    )
+    if _rebuild_lock.locked():
+        raise HTTPException(
+            status_code=409,
+            detail="A BAG pand summary rebuild is already in progress.",
+        )
+
+    async with _rebuild_lock:
+        result = await build_bag_pand_summary_store(
+            province_statcode=province_statcode,
+            resume=resume,
+            municipality_retry_attempts=municipality_retry_attempts,
+            retry_failed_municipalities=retry_failed_municipalities,
+        )
+
     return {
         "ok": result.get("status") == "complete",
         "status": result.get("status"),

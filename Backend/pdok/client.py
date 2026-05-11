@@ -11,6 +11,57 @@ from Backend.logging_setup import get_logger
 
 logger = get_logger(__name__)
 
+_DEFAULT_HEADERS: Dict[str, str] = {
+    "Accept": "application/geo+json,application/json;q=0.9,text/html;q=0.1",
+    "User-Agent": "geonovum-registry-dashboard/0.1.0",
+}
+
+_DEFAULT_LIMITS = httpx.Limits(
+    max_keepalive_connections=20,
+    max_connections=40,
+    keepalive_expiry=30.0,
+)
+
+_shared_client: Optional[httpx.AsyncClient] = None
+
+
+async def startup_http_client() -> None:
+    global _shared_client
+    if _shared_client is not None:
+        return
+
+    _shared_client = httpx.AsyncClient(
+        timeout=httpx.Timeout(30.0, connect=10.0),
+        follow_redirects=True,
+        headers=_DEFAULT_HEADERS,
+        limits=_DEFAULT_LIMITS,
+        http2=False,
+    )
+
+
+async def shutdown_http_client() -> None:
+    global _shared_client
+    if _shared_client is None:
+        return
+
+    client = _shared_client
+    _shared_client = None
+    await client.aclose()
+
+
+def _get_client() -> httpx.AsyncClient:
+    if _shared_client is not None:
+        return _shared_client
+
+    logger.warning(
+        "shared httpx client is not initialized; creating a transient client"
+    )
+    return httpx.AsyncClient(
+        timeout=httpx.Timeout(30.0, connect=10.0),
+        follow_redirects=True,
+        headers=_DEFAULT_HEADERS,
+    )
+
 
 async def fetch_json(
     url: str,
@@ -23,42 +74,42 @@ async def fetch_json(
     if cached is not None:
         return cached
 
-    headers = {
-        "Accept": "application/geo+json,application/json;q=0.9,text/html;q=0.1",
-        "User-Agent": "geonovum-registry-dashboard/0.1.0",
-    }
-
     last_error: Optional[HTTPException] = None
 
-    for attempt in range(1, max(1, request_retries) + 1):
-        try:
-            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-                response = await client.get(url, headers=headers)
-        except httpx.RequestError as exc:
-            last_error = HTTPException(
-                status_code=502,
-                detail=f"Upstream request error: {exc!s}",
-            )
-        else:
-            if response.status_code == 200:
-                data = response.json()
-                cache_set(url, data, ttl_seconds)
-                return data
+    client = _get_client()
+    must_close = client is not _shared_client
+    try:
+        for attempt in range(1, max(1, request_retries) + 1):
+            try:
+                response = await client.get(url)
+            except httpx.RequestError as exc:
+                last_error = HTTPException(
+                    status_code=502,
+                    detail=f"Upstream request error: {exc!s}",
+                )
+            else:
+                if response.status_code == 200:
+                    data = response.json()
+                    cache_set(url, data, ttl_seconds)
+                    return data
 
-            snippet = response.text[:300].replace("\n", " ")
-            last_error = HTTPException(
-                status_code=502,
-                detail=f"Upstream error {response.status_code} for {url}. Body: {snippet}",
-            )
+                snippet = response.text[:300].replace("\n", " ")
+                last_error = HTTPException(
+                    status_code=502,
+                    detail=f"Upstream error {response.status_code} for {url}. Body: {snippet}",
+                )
 
-            if response.status_code < 500:
-                raise last_error
+                if response.status_code < 500:
+                    raise last_error
 
-        if attempt < max(1, request_retries):
-            await asyncio.sleep(retry_delay_seconds * attempt)
+            if attempt < max(1, request_retries):
+                await asyncio.sleep(retry_delay_seconds * attempt)
 
-    assert last_error is not None
-    raise last_error
+        assert last_error is not None
+        raise last_error
+    finally:
+        if must_close:
+            await client.aclose()
 
 
 async def fetch_all_features(start_url: str, *, ttl_seconds: int = 3600) -> Dict[str, Any]:
