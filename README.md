@@ -12,17 +12,24 @@ internship project at the University of Twente.
 
 ## Quick start
 
-The supported deployment is `docker compose`. The seed `data/` folder ships
-separately and must sit next to `docker-compose.yml` before the first run; it
-contains the pre-computed CBS boundary cache and BAG summary store.
+The supported deployment is `docker compose`. No seed data needed — the
+`data/` directory is created and populated automatically on first use.
 
 ```bash
 docker compose up --build
 ```
 
-Open http://localhost:8000. With seed data mounted, all drilldowns are served
-from the on-disk cache. Without seed data, the backend lazily fetches and
-caches from PDOK on first request — each cold area takes 10-40 seconds.
+Open http://localhost:8000 (or your server's address on a remote host).
+On first use, the backend lazily fetches and caches CBS boundaries and BAG
+features from PDOK — each cold area takes 10-40 seconds. Subsequent requests
+are served from the on-disk cache.
+
+To pre-build the BAG pand summary store (recommended, otherwise building
+counts show as zero until each area is visited individually):
+
+```bash
+docker exec dutch-registries-dashboard python -m Backend.cli.rebuild
+```
 
 For local development without Docker, see [Local development](#local-development).
 
