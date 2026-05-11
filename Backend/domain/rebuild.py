@@ -4,7 +4,11 @@ import asyncio
 import time
 from typing import Any, Dict, List, Optional
 
-from Backend.domain.admin import count_bag_pand_for_area, load_municipalities
+from Backend.domain.admin import (
+    count_bag_pand_for_area,
+    load_municipalities_for_province,
+    load_provinces,
+)
 from Backend.domain.bag_summary import (
     SUMMARY_DATASET_KEY,
     get_or_create_dataset_province_entry,
@@ -54,7 +58,6 @@ async def build_bag_pand_summary_store(
     municipality_retry_attempts: int = 2,
     retry_failed_municipalities: bool = True,
 ) -> Dict[str, Any]:
-    gemeenten = await load_municipalities()
     store = load_bag_pand_summary_store()
     dataset = get_summary_dataset(store, SUMMARY_DATASET_KEY)
 
@@ -68,20 +71,39 @@ async def build_bag_pand_summary_store(
     municipality_features: List[Dict[str, Any]] = []
     municipality_total_by_province: Dict[str, int] = {}
 
-    for feature in gemeenten["features"]:
-        props = feature.get("properties", {}) or {}
-        municipality_statcode = str(props.get("_statcode", "")).strip().upper()
-        pv_statcode = str(props.get("_pvstatcode", "")).strip().upper()
+    if only_province:
+        pv_codes = [only_province]
+    else:
+        provinces = await load_provinces()
+        pv_codes = [
+            str(f.get("properties", {}).get("_statcode", "")).strip().upper()
+            for f in provinces.get("features", []) or []
+        ]
+        pv_codes = [pv for pv in pv_codes if pv.startswith("PV")]
 
-        if not municipality_statcode.startswith("GM"):
-            continue
-        if only_province and pv_statcode != only_province:
-            continue
-        if not pv_statcode:
+    for pv in pv_codes:
+        try:
+            province_data = await load_municipalities_for_province(pv)
+        except Exception as exc:
+            logger.warning("rebuild: failed to load municipalities for %s: %s", pv, exc)
             continue
 
-        municipality_features.append(feature)
-        municipality_total_by_province[pv_statcode] = municipality_total_by_province.get(pv_statcode, 0) + 1
+        for feature in province_data.get("features", []) or []:
+            props = feature.get("properties", {}) or {}
+            municipality_statcode = str(props.get("_statcode", "")).strip().upper()
+            pv_statcode = str(props.get("_pvstatcode", "")).strip().upper() or pv
+
+            if not municipality_statcode.startswith("GM"):
+                continue
+            if not pv_statcode:
+                continue
+            if not props.get("_pvstatcode"):
+                props["_pvstatcode"] = pv_statcode
+
+            municipality_features.append(feature)
+            municipality_total_by_province[pv_statcode] = (
+                municipality_total_by_province.get(pv_statcode, 0) + 1
+            )
 
     municipality_features.sort(
         key=lambda feature: (

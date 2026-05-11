@@ -23,7 +23,6 @@ from Backend.domain import (
     feature_matches_area_for_bag_object,
     get_area_feature,
     load_buurten_for_municipality,
-    load_municipalities,
     load_municipalities_for_province,
     load_provinces,
     load_wijken_for_municipality,
@@ -100,13 +99,10 @@ async def get_provinces() -> Dict[str, Any]:
 
 @app.get("/api/areas/municipalities")
 async def get_municipalities(
-    province_statcode: Optional[str] = Query(default=None)
+    province_statcode: str = Query(..., description="Province statcode, e.g. PV26"),
 ) -> Dict[str, Any]:
-    if province_statcode:
-        pv_statcode = province_statcode.strip().upper()
-        return await load_municipalities_for_province(pv_statcode)
-
-    return await load_municipalities()
+    pv_statcode = province_statcode.strip().upper()
+    return await load_municipalities_for_province(pv_statcode)
 
 
 @app.get("/api/areas/wijken")

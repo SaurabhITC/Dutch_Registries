@@ -25,7 +25,6 @@ from Backend.domain.geometry import (
 from Backend.paths import (
     ADMIN_BUURTEN_DIR,
     ADMIN_MUNICIPALITIES_BY_PROVINCE_DIR,
-    ADMIN_MUNICIPALITIES_FILE,
     ADMIN_MUNICIPALITY_PROVINCE_MAP_FILE,
     ADMIN_PROVINCES_FILE,
     ADMIN_WIJKEN_DIR,
@@ -181,43 +180,6 @@ async def load_provinces() -> Dict[str, Any]:
     return provincies
 
 
-async def load_municipalities() -> Dict[str, Any]:
-    cache_key = "admin_municipalities_v1"
-    cached = cache_get(cache_key)
-    if isinstance(cached, dict):
-        return cached
-
-    disk_cached = load_admin_cache_file(
-        ADMIN_MUNICIPALITIES_FILE,
-        expected_level="municipality",
-    )
-    if isinstance(disk_cached, dict):
-        cache_set(cache_key, disk_cached, 24 * 3600)
-        return disk_cached
-
-    gm_to_pv = await load_municipality_to_province_map()
-
-    gemeente_raw = await fetch_all_features(GEMEENTE_URL, ttl_seconds=24 * 3600)
-    gemeenten = preprocess_features(gemeente_raw, "gemeente")
-
-    for feature in gemeenten["features"]:
-        props = feature.get("properties", {}) or {}
-        gm_statcode = str(props.get("_statcode", "")).strip().upper()
-
-        if not gm_statcode.startswith("GM"):
-            continue
-
-        props["_pvstatcode"] = gm_to_pv.get(gm_statcode, "")
-
-    save_admin_cache_file(
-        ADMIN_MUNICIPALITIES_FILE,
-        gemeenten,
-        level="municipality",
-    )
-    cache_set(cache_key, gemeenten, 24 * 3600)
-    return gemeenten
-
-
 async def load_municipalities_for_province(province_statcode: str) -> Dict[str, Any]:
     pv_statcode = str(province_statcode or "").strip().upper()
     if not pv_statcode.startswith("PV"):
@@ -237,14 +199,25 @@ async def load_municipalities_for_province(province_statcode: str) -> Dict[str, 
         cache_set(cache_key, disk_cached, 24 * 3600)
         return disk_cached
 
-    gemeenten = await load_municipalities()
-    filtered_features: List[Dict[str, Any]] = [
-        feature
-        for feature in gemeenten.get("features", []) or []
-        if str(
-            (feature.get("properties", {}) or {}).get("_pvstatcode", "")
-        ).strip().upper() == pv_statcode
-    ]
+    # Cache miss — fetch all gemeenten from PDOK once and slice to this province
+    # using the existing municipality→province map. The CBS gemeente collection
+    # does not expose a pv_statcode property to filter at the URL level; the
+    # per-province slice happens client-side.
+    gm_to_pv = await load_municipality_to_province_map()
+    gemeente_raw = await fetch_all_features(GEMEENTE_URL, ttl_seconds=24 * 3600)
+    gemeenten = preprocess_features(gemeente_raw, "gemeente")
+
+    filtered_features: List[Dict[str, Any]] = []
+    for feature in gemeenten.get("features", []) or []:
+        props = feature.get("properties", {}) or {}
+        gm_statcode = str(props.get("_statcode", "")).strip().upper()
+        if not gm_statcode.startswith("GM"):
+            continue
+        pv = gm_to_pv.get(gm_statcode, "")
+        if pv != pv_statcode:
+            continue
+        props["_pvstatcode"] = pv
+        filtered_features.append(feature)
 
     result = {"type": "FeatureCollection", "features": filtered_features}
 
@@ -378,7 +351,14 @@ async def get_area_feature(level: str, statcode: str) -> Dict[str, Any]:
         features = (await load_provinces())["features"]
 
     elif level == "municipality":
-        features = (await load_municipalities())["features"]
+        gm_to_pv = await load_municipality_to_province_map()
+        pv = gm_to_pv.get(statcode)
+        if not pv:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Municipality {statcode} not found in province map",
+            )
+        features = (await load_municipalities_for_province(pv))["features"]
 
     elif level == "wijk":
         gmcode = municipality_code_from_statcode(statcode)
