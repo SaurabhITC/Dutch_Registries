@@ -6,7 +6,7 @@
 const locales = {
   nl: {
     pageTitle: "Nederlands Basisregistratie Dashboard",
-    appTitle: "Nederlands Basisregistratie Dashboard",
+    appTitle: "Basisregistratie Dashboard",
     languageLabel: "Taal",
     languageAriaLabel: "Taal",
     sideHead: "Bedieningspaneel",
@@ -63,15 +63,21 @@ const locales = {
     overviewDialogLabel: "Overzichtsdialoog",
     overviewTitle: "Overzicht",
     overviewClose: "Sluiten",
-    overviewIntro: "Dashboardprototype voor het verkennen van Nederlandse basisregistraties via administratieve selecties.",
-    howToTitle: "Gebruik",
-    howTo1: "Begin met het selecteren van een <b>provincie</b> in de lijst, of klik op een provincie op de kaart.",
-    howTo2: "Na het selecteren van een provincie worden de gemeenten binnen die provincie beschikbaar.",
-    howTo3: "Na het selecteren van een gemeente worden de wijken beschikbaar. Na het selecteren van een wijk worden de buurten beschikbaar.",
-    howTo4: "Gebruik <b>Home</b> om terug te keren naar het nationale overzicht en de hiërarchie te wissen. Gebruik <b>Basiskaart</b> om de achtergrond te wisselen.",
-    layersTitle: "Administratieve lagen",
-    layers1: "Provincie-, gemeente-, wijk- en buurtgrenzen in deze versie worden geladen uit de CBS 2025-hiërarchie.",
-    layers2: "Nationale en provinciale referentiegrenzen uit de PDOK/Kadaster-basisstijl blijven daaronder zichtbaar.",
+    overviewIntro: "Het Basisregistratie Dashboard is een interactief instrument voor het verkennen van Nederlandse basisregistraties op verschillende bestuurlijke niveaus. Selecteer een gebied in Nederland - van provincie tot individuele buurt - en het dashboard haalt live data op van PDOK, visualiseert die op een kaart en vat deze samen in grafieken en tellingen. Ontwikkeld als Geonovum-stageopdracht aan de Universiteit Twente.",
+    navTitle: "Navigeren op de kaart",
+    navBody: "Het dashboard is georganiseerd rond de Nederlandse bestuurlijke hiërarchie: Provincie - Gemeente - Wijk - Buurt. Begin door op een provincie te klikken op de kaart of er een te selecteren in het dropdown-menu in het linker paneel. De kaart zoomt in en het gemeente-dropdown wordt beschikbaar. Blijf verder inzoomen - elke selectie zoomt de kaart verder en laadt de grenzen van het volgende niveau. Je kunt ook direct op een zichtbare grens op de kaart klikken en de dropdowns volgen automatisch. Het oogicoon naast elk dropdown verbergt of toont die grenslaag voor een overzichtelijker beeld.",
+    bagTitle: "BAG-data verkennen",
+    bagBody: "Zodra je wijk- of buurtniveau bereikt, worden de BAG-lagen (Basisregistraties Adressen en Gebouwen) actief. Vink een combinatie aan van de zes laagcheckboxen in het linker paneel: Pand (gebouwcontouren), Verblijfsobject (woon- en bedrijfsruimten), Adres (adrespunten), Woonplaats (plaatsnaamgrenzen), Standplaats (vaste standplaatsen) en Ligplaats (ligplaatsen voor boten). Elke actieve laag verschijnt op de kaart in een eigen kleur, weergegeven in de legenda linksonder. De gegevenssamenvatting rechts wordt bijgewerkt met het totale aantal objecten per type in het geselecteerde gebied.",
+    chartsTitle: "Grafieken en rapporten",
+    chartsBody: "Met actieve BAG-lagen toont de samenvatting drie grafieken: bouwjaarverdeling, gebruiksdoel en oppervlakteverdeling. Klik op het vergroot-icoon bij een grafiek om deze op volledig scherm te bekijken. Op wijk- of buurtniveau met minimaal een actieve laag verschijnt een downloadknop bovenaan de samenvatting. Een klik genereert een PDF-rapport voor het geselecteerde gebied met kaarten, tellingen en grafieken voor elke actieve laag. Het genereren duurt ongeveer 10-30 seconden.",
+    controlsTitle: "Kaartbediening",
+    controlsBody: "De Home-knop keert terug naar het nationale overzicht en wist de selectie. De Basiskaart-knop wisselt tussen de BRT-topografische kaart en luchtfoto - gebruik de transparantieschuifregelaar om ze te mengen. Met de schakelknoppen in de legenda verberg of toon je gemeente-, wijk- en buurtgrenzen afzonderlijk. Zoom met de plus- en minknoppen of het scrollwiel en versleep de kaart om te pannen.",
+    langTitle: "Taal",
+    langBody: "Wissel tussen NL en EN via de kiezer rechtsboven. Alle labels, dropdowns, grafieken en de samenvatting worden direct bijgewerkt.",
+    dataTitle: "Data en prestaties",
+    dataBody: "Bestuurlijke grenzen komen uit de CBS gebiedsindelingen 2025 via PDOK. BAG-objecten worden live opgehaald van de PDOK BAG OGC API v2 en gecached na de eerste keer laden - het eerste bezoek aan een nieuw gebied duurt 10-40 seconden, herhaalde bezoeken zijn direct. De basiskaart wordt geleverd door PDOK BRT achtergrondkaart en Kadaster luchtfoto.",
+    futureTitle: "Toekomstige ontwikkeling",
+    futureBody: "Integratie van BGT (Basisregistratie Grootschalige Topografie) en BRO (Basisregistratie Ondergrond) is gepland voor toekomstige ontwikkeling.",
     homeTitle: "Home (standaardweergave)",
     basemapTitle: "Basiskaart",
     basemapHeader: "Basiskaart",
@@ -158,7 +164,7 @@ const locales = {
   },
   en: {
     pageTitle: "Dutch Base Registries Dashboard",
-    appTitle: "Dutch Base Registries Dashboard",
+    appTitle: "Base Registries Dashboard",
     languageLabel: "Language",
     languageAriaLabel: "Language",
     sideHead: "Control panel",
@@ -215,15 +221,21 @@ const locales = {
     overviewDialogLabel: "Overview dialog",
     overviewTitle: "Overview",
     overviewClose: "Close",
-    overviewIntro: "Dashboard prototype for exploring Dutch base registries through administrative selections.",
-    howToTitle: "How to use",
-    howTo1: "Start by selecting a <b>province</b> from the list, or click a province on the map.",
-    howTo2: "After selecting a province, the municipalities within that province become available.",
-    howTo3: "After selecting a municipality, the districts become available. After selecting a district, the neighborhoods become available.",
-    howTo4: "Use <b>Home</b> to return to the national overview and clear the hierarchy. Use <b>Basemap</b> to switch the background.",
-    layersTitle: "Administrative layers",
-    layers1: "Province, municipality, district, and neighborhood boundaries in this version are loaded from the CBS 2025 hierarchy.",
-    layers2: "National and provincial reference boundaries from the PDOK/Kadaster base style remain visible underneath.",
+    overviewIntro: "Basisregistratie Dashboard is an interactive tool for exploring Dutch base registries across administrative boundaries. Select any area in the Netherlands - from province down to individual neighborhood - and the dashboard fetches live data from PDOK, visualises it on a map, and summarises it in charts and counts. Built as a Geonovum internship project at the University of Twente.",
+    navTitle: "Navigating the map",
+    navBody: "The dashboard is organised around the Dutch administrative hierarchy: Province - Municipality (Gemeente) - District (Wijk) - Neighborhood (Buurt). Start by clicking a province on the map or selecting one from the dropdown in the left panel. The map zooms in and the municipality dropdown becomes available. Keep drilling down - each selection zooms the map further and loads the next level boundaries. You can also click any visible boundary directly on the map and the dropdowns will follow automatically. The eye icon next to each dropdown hides or shows that boundary layer if you want a cleaner view.",
+    bagTitle: "Exploring BAG data",
+    bagBody: "Once you reach wijk or buurt level, the BAG (Basisregistraties Adressen en Gebouwen) layers become active. Tick any combination of the six layer checkboxes in the left panel: Pand (building footprints), Verblijfsobject (residential and commercial units), Adres (address points), Woonplaats (named place boundaries), Standplaats (permanent pitch locations), and Ligplaats (boat mooring locations). Each active layer appears on the map with its own color, shown in the legend at the bottom left. The summary card on the right updates to show the total count of each object type in the selected area.",
+    chartsTitle: "Charts and reports",
+    chartsBody: "With BAG layers active, the summary card shows three charts - construction year distribution (Bouwjaar), intended use (Gebruiksdoel), and floor area (Oppervlakte). Click the expand icon on any chart to view it full-screen. At wijk or buurt level with at least one layer active, a download button appears at the top of the summary card. Clicking it generates a PDF report for the selected area with maps, counts, and charts for every active layer. Report generation takes around 10-30 seconds.",
+    controlsTitle: "Map controls",
+    controlsBody: "The Home button resets to the national Netherlands view and clears the selection. The Basemap button switches between the BRT topographic map and aerial imagery - use the transparency slider to blend them. The boundary toggle buttons in the legend let you hide or show municipality, district, and neighborhood lines independently. Zoom with the plus and minus buttons or the scroll wheel, and pan by dragging.",
+    langTitle: "Language",
+    langBody: "Switch between NL and EN using the selector in the top right. All labels, dropdowns, charts, and the summary card update immediately.",
+    dataTitle: "Data and performance",
+    dataBody: "Administrative boundaries come from CBS gebiedsindelingen 2025 via PDOK. BAG objects are fetched live from the PDOK BAG OGC API v2 and cached after the first load - the first visit to any new area takes 10-40 seconds, repeat visits are instant. The basemap is served by PDOK BRT achtergrondkaart and Kadaster luchtfoto.",
+    futureTitle: "Coming soon",
+    futureBody: "BGT (Basisregistratie Grootschalige Topografie) and BRO (Basisregistratie Ondergrond) integration are planned for future development.",
     homeTitle: "Home (default view)",
     basemapTitle: "Basemap",
     basemapHeader: "Basemap",
@@ -396,14 +408,20 @@ function applyLanguageText(){
   setText('overviewTitle', tr('overviewTitle'));
   setText('overviewClose', tr('overviewClose'));
   setText('overviewIntro', tr('overviewIntro'));
-  setText('howToTitle', tr('howToTitle'));
-  setHtml('howTo1', tr('howTo1'));
-  setHtml('howTo2', tr('howTo2'));
-  setHtml('howTo3', tr('howTo3'));
-  setHtml('howTo4', tr('howTo4'));
-  setText('layersTitle', tr('layersTitle'));
-  setText('layers1', tr('layers1'));
-  setText('layers2', tr('layers2'));
+  setText('navTitle', tr('navTitle'));
+  setText('navBody', tr('navBody'));
+  setText('bagTitle', tr('bagTitle'));
+  setText('bagBody', tr('bagBody'));
+  setText('chartsTitle', tr('chartsTitle'));
+  setText('chartsBody', tr('chartsBody'));
+  setText('controlsTitle', tr('controlsTitle'));
+  setText('controlsBody', tr('controlsBody'));
+  setText('langTitle', tr('langTitle'));
+  setText('langBody', tr('langBody'));
+  setText('dataTitle', tr('dataTitle'));
+  setText('dataBody', tr('dataBody'));
+  setText('futureTitle', tr('futureTitle'));
+  setText('futureBody', tr('futureBody'));
   if (homeBtnEl) homeBtnEl.title = tr('homeTitle');
   document.querySelectorAll('.chartExpandBtn').forEach(btn => {
     btn.setAttribute('aria-label', tr('chartExpand'));

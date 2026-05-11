@@ -919,11 +919,14 @@
     .modalBackdrop.open{display:flex;}
     .modalCard{
       width:min(820px, 100%);
+      max-height: min(85vh, 800px);
       border-radius: 18px;
       border: 1px solid var(--stroke);
       background: rgba(255,255,255,0.94);
       box-shadow: 0 22px 70px rgba(2,6,23,0.26);
-      overflow:hidden;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
     .modalHead{
       display:flex;align-items:center;justify-content:space-between;gap:10px;
@@ -942,6 +945,8 @@
       color: var(--text);
       font-size: 12px;
       line-height: 1.6;
+      overflow-y: auto;
+      flex: 1;
     }
     .modalBody h4{
       margin: 12px 0 6px 0;

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Nederlands Basisregistratie Dashboard</title>
+  <title>Basisregistratie Dashboard</title>
 
   <link rel="stylesheet" href="/vendor/maplibre-gl.css" />
   <link rel="stylesheet" href="styles.css" />
@@ -324,23 +324,30 @@
         <button class="modalClose" id="overviewClose" type="button">Sluiten</button>
       </div>
       <div class="modalBody">
-        <div id="overviewIntro" style="color:var(--muted);">
-          Dashboardprototype voor het verkennen van Nederlandse basisregistraties (BGT, BAG, BRO) via administratieve selecties.
+        <div id="overviewIntro" style="color:var(--muted); margin-bottom:1rem;">
+          Placeholder intro - replaced by i18n on load.
         </div>
 
-        <h4 id="howToTitle">Gebruik</h4>
-        <ul>
-          <li id="howTo1">Begin met het selecteren van een <b>provincie</b> in de lijst, of klik op een provincie op de kaart.</li>
-          <li id="howTo2">Na het selecteren van een provincie worden de gemeenten binnen die provincie beschikbaar.</li>
-          <li id="howTo3">Na het selecteren van een gemeente worden de wijken beschikbaar. Na het selecteren van een wijk worden de buurten beschikbaar.</li>
-          <li id="howTo4">Gebruik <b>Home</b> om terug te keren naar het nationale overzicht en de hiërarchie te wissen. Gebruik <b>Basiskaart</b> om de achtergrond te wisselen.</li>
-        </ul>
+        <h4 id="navTitle" style="margin-top:1rem;">Navigeren op de kaart</h4>
+        <p id="navBody"></p>
 
-        <h4 id="layersTitle">Administratieve lagen</h4>
-        <ul>
-          <li id="layers1">Provincie-, gemeente-, wijk- en buurtgrenzen in deze versie worden geladen uit de CBS 2025-hiërarchie.</li>
-          <li id="layers2">Nationale en provinciale referentiegrenzen uit de PDOK/Kadaster-basisstijl blijven daaronder zichtbaar.</li>
-        </ul>
+        <h4 id="bagTitle">BAG-data verkennen</h4>
+        <p id="bagBody"></p>
+
+        <h4 id="chartsTitle">Grafieken en rapporten</h4>
+        <p id="chartsBody"></p>
+
+        <h4 id="controlsTitle">Kaartbediening</h4>
+        <p id="controlsBody"></p>
+
+        <h4 id="langTitle">Taal</h4>
+        <p id="langBody"></p>
+
+        <h4 id="dataTitle">Data en prestaties</h4>
+        <p id="dataBody"></p>
+
+        <h4 id="futureTitle">Toekomstige ontwikkeling</h4>
+        <p id="futureBody"></p>
       </div>
     </div>
   </div>

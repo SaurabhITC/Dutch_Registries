@@ -151,6 +151,7 @@ import {
       overviewBtn.addEventListener("click", () => openOverview(true));
       overviewClose.addEventListener("click", () => openOverview(false));
       overviewModal.addEventListener("click", (e) => { if (e.target === overviewModal) openOverview(false); });
+      openOverview(true);
       document.addEventListener("keydown", (e) => { if (e.key === "Escape") openOverview(false); });
 
       if (typeof maplibregl === "undefined"){
