@@ -12,7 +12,11 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from Backend.cache import atomic_write_json
+from Backend.cache import (
+    atomic_write_json,
+    load_bag_features_from_cache,
+    save_bag_features_to_cache,
+)
 from Backend.config import settings
 from Backend.logging_setup import get_logger
 from Backend.domain import (
@@ -22,6 +26,7 @@ from Backend.domain import (
     get_area_feature,
     load_buurten_for_municipality,
     load_municipalities,
+    load_municipalities_for_province,
     load_provinces,
     load_wijken_for_municipality,
     bbox_from_feature,
@@ -569,16 +574,11 @@ async def get_provinces() -> Dict[str, Any]:
 async def get_municipalities(
     province_statcode: Optional[str] = Query(default=None)
 ) -> Dict[str, Any]:
-    data = await load_municipalities()
-    features = data["features"]
-
     if province_statcode:
-        features = [
-            f for f in features
-            if f.get("properties", {}).get("_pvstatcode") == province_statcode
-        ]
+        pv_statcode = province_statcode.strip().upper()
+        return await load_municipalities_for_province(pv_statcode)
 
-    return {"type": "FeatureCollection", "features": features}
+    return await load_municipalities()
 
 
 @app.get("/api/areas/wijken")
@@ -699,7 +699,14 @@ async def get_bag_pand(
     level: str = Query(...),
     statcode: str = Query(...),
 ) -> Dict[str, Any]:
-    area_feature = await get_area_feature(level, statcode)
+    level_norm = (level or "").strip().lower()
+    statcode_norm = (statcode or "").strip().upper()
+
+    cached = load_bag_features_from_cache("pand", level_norm, statcode_norm)
+    if cached is not None:
+        return cached
+
+    area_feature = await get_area_feature(level_norm, statcode_norm)
     bbox = bbox_from_feature(area_feature)
     url = f"{BAG_PAND_URL}&bbox={bbox}"
 
@@ -709,10 +716,13 @@ async def get_bag_pand(
         if feature_intersects_area(f, area_feature)
     ]
 
-    return {
+    result = {
         "type": "FeatureCollection",
         "features": filtered_features,
     }
+
+    save_bag_features_to_cache("pand", level_norm, statcode_norm, result)
+    return result
 
 
 @app.get("/api/bag/{object_type}")
@@ -722,6 +732,8 @@ async def get_bag_object(
     statcode: str = Query(...),
 ) -> Dict[str, Any]:
     object_type_norm = str(object_type or "").strip().lower()
+    level_norm = (level or "").strip().lower()
+    statcode_norm = (statcode or "").strip().upper()
 
     if object_type_norm not in BAG_COLLECTION_URLS:
         raise HTTPException(
@@ -729,7 +741,19 @@ async def get_bag_object(
             detail=f"Unsupported BAG object type: {object_type}",
         )
 
-    area_feature = await get_area_feature(level, statcode)
+    cached = load_bag_features_from_cache(object_type_norm, level_norm, statcode_norm)
+    if cached is not None:
+        cached_features = cached.get("features", []) or []
+        return {
+            "type": "FeatureCollection",
+            "features": cached_features,
+            "count": len(cached_features),
+            "object_type": object_type_norm,
+            "level": level,
+            "statcode": statcode,
+        }
+
+    area_feature = await get_area_feature(level_norm, statcode_norm)
     bbox = bbox_from_feature(area_feature)
     url = f"{BAG_COLLECTION_URLS[object_type_norm]}&bbox={bbox}"
 
@@ -738,6 +762,12 @@ async def get_bag_object(
         f for f in raw_fc.get("features", []) or []
         if feature_matches_area_for_bag_object(f, area_feature, object_type_norm)
     ]
+
+    result = {
+        "type": "FeatureCollection",
+        "features": filtered_features,
+    }
+    save_bag_features_to_cache(object_type_norm, level_norm, statcode_norm, result)
 
     return {
         "type": "FeatureCollection",

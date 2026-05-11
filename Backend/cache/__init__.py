@@ -1,3 +1,9 @@
+from .bag_features import (
+    BAG_FEATURE_CACHE_TTL_SECONDS,
+    BAG_FEATURE_CACHE_VERSION,
+    load_bag_features_from_cache,
+    save_bag_features_to_cache,
+)
 from .disk import (
     ADMIN_CACHE_VERSION,
     atomic_write_json,
@@ -21,4 +27,8 @@ __all__ = [
     "save_admin_cache_file",
     "load_municipality_to_province_map_file",
     "save_municipality_to_province_map_file",
+    "BAG_FEATURE_CACHE_VERSION",
+    "BAG_FEATURE_CACHE_TTL_SECONDS",
+    "load_bag_features_from_cache",
+    "save_bag_features_to_cache",
 ]

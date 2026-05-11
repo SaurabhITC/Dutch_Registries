@@ -684,6 +684,27 @@
       const bagFeatureCache = new Map();
       let bagSummarySectionHtml = "";
       const AUTO_RETRY_DELAYS_MS = [1500, 4000, 8000];
+      const BAG_FETCH_CONCURRENCY = 3;
+
+      async function runWithConcurrencyLimit(items, limit, worker){
+        const results = new Array(items.length);
+        if (!items.length) return results;
+        let next = 0;
+        const poolSize = Math.max(1, Math.min(limit, items.length));
+        async function poolWorker(){
+          while (true){
+            const idx = next++;
+            if (idx >= items.length) return;
+            results[idx] = await worker(items[idx], idx);
+          }
+        }
+        const workers = [];
+        for (let i = 0; i < poolSize; i++){
+          workers.push(poolWorker());
+        }
+        await Promise.all(workers);
+        return results;
+      }
 
       // Map visualization state - declared here (top-of-file) because
       // updateLegendContext reads `activeMapVisualization` during boot via
@@ -2555,60 +2576,90 @@
         renderBagLayerSummary(initialRows, areaFeature, level, [], showMap, loadingKeys.size ? tr('bagSummaryLoadingStatic') : '');
         renderBagCharts(loadingKeys);
 
+        const statcode = areaFeature.properties?._statcode || '';
+
+        // Phase A — Build per-key tasks synchronously in ALL_BAG_KEYS order.
+        // Tasks that need a network call are picked up by the worker pool in
+        // Phase B; cached/inactive tasks are resolved here without awaiting.
+        const tasks = ALL_BAG_KEYS.map(key => {
+          const isActive = activeKeys.includes(key);
+          const label = collectionLabel(BAG_COLLECTIONS[key]);
+
+          if (!isActive){
+            return { key, label, kind: 'inactive' };
+          }
+
+          if (!showMap){
+            const cacheKey = `${bagCacheKey(key, level, statcode)}:summary`;
+            const cached = bagFeatureCache.get(cacheKey);
+            if (cached){
+              return { key, label, kind: 'cached-summary', summaryEntry: cached };
+            }
+            return { key, label, kind: 'fetch-summary', cacheKey };
+          }
+
+          const cacheKey = bagCacheKey(key, level, statcode);
+          const cached = bagFeatureCache.get(cacheKey);
+          if (cached){
+            return { key, label, kind: 'cached-features', fc: cached };
+          }
+          return { key, label, kind: 'fetch-features', cacheKey };
+        });
+
+        // Pre-clear stale map layer state. This mirrors the original
+        // setBagKeyData(empty)+setBagKeyVisibility(false) writes that
+        // happened before each per-key await in the old loop.
+        for (const task of tasks){
+          if (task.kind === 'cached-features') continue;
+          setBagKeyData(task.key, { type:'FeatureCollection', features: [] });
+          setBagKeyVisibility(task.key, false);
+        }
+
+        // Phase B — run network tasks in parallel with concurrency cap of 3.
+        const fetchTasks = tasks.filter(t => t.kind === 'fetch-summary' || t.kind === 'fetch-features');
+        const fetchResults = await runWithConcurrencyLimit(fetchTasks, BAG_FETCH_CONCURRENCY, async (task) => {
+          if (task.kind === 'fetch-summary'){
+            const attemptResult = await loadWithAutoRetry({
+              loadFn: () => loadBagSummaryForArea(task.key, areaFeature, level),
+              onRetry: ({ error }) => {
+                console.warn(`BAG summary load failed for ${task.key}; retrying`, error);
+              }
+            });
+            if (reqId !== bagFeatureRequestId) return null;
+            return { taskKey: task.key, attemptResult };
+          }
+          const attemptResult = await loadWithAutoRetry({
+            loadFn: () => loadBagFeaturesForArea(task.key, areaFeature, level),
+            onRetry: ({ error }) => {
+              console.warn(`BAG load failed for ${task.key}; retrying`, error);
+            }
+          });
+          if (reqId !== bagFeatureRequestId) return null;
+          return { taskKey: task.key, attemptResult };
+        });
+
+        if (reqId !== bagFeatureRequestId) return;
+
+        const resultByKey = new Map();
+        for (const entry of fetchResults){
+          if (entry) resultByKey.set(entry.taskKey, entry.attemptResult);
+        }
+
+        // Phase C — merge in ALL_BAG_KEYS order so rows render in stable order.
         const rows = [];
         const countsByKey = {};
         const partialKeys = [];
         const failedKeys = [];
 
-        for (const key of ALL_BAG_KEYS){
-          const isActive = activeKeys.includes(key);
+        for (const task of tasks){
+          const { key, label, kind } = task;
 
-          if (!isActive){
-            setBagKeyData(key, { type:'FeatureCollection', features: [] });
-            setBagKeyVisibility(key, false);
+          if (kind === 'inactive'){
             continue;
           }
 
-          const label = collectionLabel(BAG_COLLECTIONS[key]);
-
-          if (!showMap){
-            setBagKeyData(key, { type:'FeatureCollection', features: [] });
-            setBagKeyVisibility(key, false);
-
-            // Every active BAG type attempts the per-type summary endpoint.
-            // loadBagSummaryForArea returns {count:null} for 404 ("not yet
-            // supported"), so result.ok is true but _summaryCount stays null
-            // and the row falls through to the placeholder branch below.
-            const cacheKey = `${bagCacheKey(key, level, areaFeature.properties?._statcode || '')}:summary`;
-            let summaryEntry = bagFeatureCache.get(cacheKey);
-
-            if (!summaryEntry){
-              const attemptResult = await loadWithAutoRetry({
-                loadFn: () => loadBagSummaryForArea(key, areaFeature, level),
-                onRetry: ({ error }) => {
-                  console.warn(`BAG summary load failed for ${key}; retrying`, error);
-                }
-              });
-
-              if (reqId !== bagFeatureRequestId) return;
-
-              if (attemptResult.ok){
-                summaryEntry = {
-                  type:'FeatureCollection',
-                  features: [],
-                  _summaryCount: attemptResult.data?.count
-                };
-                bagFeatureCache.set(cacheKey, summaryEntry);
-              } else {
-                console.warn(`BAG summary load failed for ${key}`, attemptResult.error);
-                failedKeys.push(label);
-                rows.push({ label, error: true });
-                countsByKey[key] = 0;
-                continue;
-              }
-            }
-
-            const count = summaryEntry?._summaryCount;
+          if (kind === 'cached-summary'){
+            const count = task.summaryEntry?._summaryCount;
             if (Number.isFinite(count)){
               countsByKey[key] = count;
               rows.push({ label, count });
@@ -2619,46 +2670,66 @@
             continue;
           }
 
-          const cacheKey = bagCacheKey(key, level, areaFeature.properties?._statcode || '');
-          let fc = bagFeatureCache.get(cacheKey);
-
-          if (!fc){
-            setBagKeyData(key, { type:'FeatureCollection', features: [] });
-            setBagKeyVisibility(key, false);
-
-            const attemptResult = await loadWithAutoRetry({
-              loadFn: () => loadBagFeaturesForArea(key, areaFeature, level),
-              onRetry: ({ error }) => {
-                console.warn(`BAG load failed for ${key}; retrying`, error);
+          if (kind === 'fetch-summary'){
+            const attemptResult = resultByKey.get(key);
+            if (attemptResult && attemptResult.ok){
+              const summaryEntry = {
+                type:'FeatureCollection',
+                features: [],
+                _summaryCount: attemptResult.data?.count
+              };
+              bagFeatureCache.set(task.cacheKey, summaryEntry);
+              const count = summaryEntry._summaryCount;
+              if (Number.isFinite(count)){
+                countsByKey[key] = count;
+                rows.push({ label, count });
+              } else {
+                countsByKey[key] = 0;
+                rows.push({ label, placeholder: true });
               }
-            });
-
-            if (reqId !== bagFeatureRequestId) return;
-
-            if (attemptResult.ok){
-              fc = attemptResult.data;
-              bagFeatureCache.set(cacheKey, fc);
             } else {
-              console.warn(`BAG load failed for ${key}`, attemptResult.error);
+              if (attemptResult){
+                console.warn(`BAG summary load failed for ${key}`, attemptResult.error);
+              }
               failedKeys.push(label);
               rows.push({ label, error: true });
               countsByKey[key] = 0;
-              setBagKeyData(key, { type:'FeatureCollection', features: [] });
-              setBagKeyVisibility(key, false);
-              continue;
             }
+            continue;
           }
 
-          if (reqId !== bagFeatureRequestId) return;
+          if (kind === 'cached-features'){
+            const fc = task.fc;
+            setBagKeyData(key, fc);
+            const count = Number.isFinite(fc._summaryCount) ? fc._summaryCount : (fc.features || []).length;
+            countsByKey[key] = count;
+            setBagKeyVisibility(key, (fc.features || []).length > 0);
+            rows.push({ label, count });
+            if (fc._truncated) partialKeys.push(label);
+            continue;
+          }
 
-          setBagKeyData(key, fc);
-
-          const count = Number.isFinite(fc._summaryCount) ? fc._summaryCount : (fc.features || []).length;
-          countsByKey[key] = count;
-          setBagKeyVisibility(key, (fc.features || []).length > 0);
-
-          rows.push({ label, count });
-          if (fc._truncated) partialKeys.push(label);
+          if (kind === 'fetch-features'){
+            const attemptResult = resultByKey.get(key);
+            if (attemptResult && attemptResult.ok){
+              const fc = attemptResult.data;
+              bagFeatureCache.set(task.cacheKey, fc);
+              setBagKeyData(key, fc);
+              const count = Number.isFinite(fc._summaryCount) ? fc._summaryCount : (fc.features || []).length;
+              countsByKey[key] = count;
+              setBagKeyVisibility(key, (fc.features || []).length > 0);
+              rows.push({ label, count });
+              if (fc._truncated) partialKeys.push(label);
+            } else {
+              if (attemptResult){
+                console.warn(`BAG load failed for ${key}`, attemptResult.error);
+              }
+              failedKeys.push(label);
+              rows.push({ label, error: true });
+              countsByKey[key] = 0;
+            }
+            continue;
+          }
         }
 
         if (reqId !== bagFeatureRequestId) return;

@@ -24,6 +24,7 @@ from Backend.domain.geometry import (
 )
 from Backend.paths import (
     ADMIN_BUURTEN_DIR,
+    ADMIN_MUNICIPALITIES_BY_PROVINCE_DIR,
     ADMIN_MUNICIPALITIES_FILE,
     ADMIN_MUNICIPALITY_PROVINCE_MAP_FILE,
     ADMIN_PROVINCES_FILE,
@@ -215,6 +216,45 @@ async def load_municipalities() -> Dict[str, Any]:
     )
     cache_set(cache_key, gemeenten, 24 * 3600)
     return gemeenten
+
+
+async def load_municipalities_for_province(province_statcode: str) -> Dict[str, Any]:
+    pv_statcode = str(province_statcode or "").strip().upper()
+    if not pv_statcode.startswith("PV"):
+        return empty_feature_collection()
+
+    cache_key = f"admin_municipalities_by_pv_v1::{pv_statcode}"
+    cached = cache_get(cache_key)
+    if isinstance(cached, dict):
+        return cached
+
+    disk_path = ADMIN_MUNICIPALITIES_BY_PROVINCE_DIR / f"{pv_statcode}.json"
+    disk_cached = load_admin_cache_file(
+        disk_path,
+        expected_level="municipality",
+    )
+    if isinstance(disk_cached, dict):
+        cache_set(cache_key, disk_cached, 24 * 3600)
+        return disk_cached
+
+    gemeenten = await load_municipalities()
+    filtered_features: List[Dict[str, Any]] = [
+        feature
+        for feature in gemeenten.get("features", []) or []
+        if str(
+            (feature.get("properties", {}) or {}).get("_pvstatcode", "")
+        ).strip().upper() == pv_statcode
+    ]
+
+    result = {"type": "FeatureCollection", "features": filtered_features}
+
+    save_admin_cache_file(
+        disk_path,
+        result,
+        level="municipality",
+    )
+    cache_set(cache_key, result, 24 * 3600)
+    return result
 
 
 def gm_statcode_from_gmcode(value: Any) -> str:

@@ -10,15 +10,19 @@ ADMIN_MUNICIPALITIES_FILE = ADMIN_CACHE_DIR / "municipalities.json"
 ADMIN_MUNICIPALITY_PROVINCE_MAP_FILE = ADMIN_CACHE_DIR / "municipality_to_province.json"
 ADMIN_WIJKEN_DIR = ADMIN_CACHE_DIR / "wijken"
 ADMIN_BUURTEN_DIR = ADMIN_CACHE_DIR / "buurten"
+ADMIN_MUNICIPALITIES_BY_PROVINCE_DIR = ADMIN_CACHE_DIR / "municipalities_by_province"
 
 BAG_DATA_DIR = RUNTIME_DATA_DIR / "bag_data"
 SUMMARY_FILE = BAG_DATA_DIR / "bag_pand_summary_store.json"
+BAG_FEATURE_CACHE_DIR = BAG_DATA_DIR / "features"
 
 for _p in [
     RUNTIME_DATA_DIR,
     ADMIN_CACHE_DIR,
     ADMIN_WIJKEN_DIR,
     ADMIN_BUURTEN_DIR,
+    ADMIN_MUNICIPALITIES_BY_PROVINCE_DIR,
     BAG_DATA_DIR,
+    BAG_FEATURE_CACHE_DIR,
 ]:
     _p.mkdir(parents=True, exist_ok=True)
