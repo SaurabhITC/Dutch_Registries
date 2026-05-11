@@ -60,6 +60,100 @@ BAG_LAYER_DISPLAY: Dict[str, Dict[str, Any]] = {
     },
 }
 
+# Per-layer style for the report's per-layer overlay map pages.
+# Keyed the same way as BAG_LAYER_DISPLAY (and BAG_COLLECTION_URLS in
+# Backend/pdok/urls.py). `radius_px` is only meaningful for point geometries.
+BAG_LAYER_MAP_STYLE: Dict[str, Dict[str, Any]] = {
+    "pand": {
+        "geometry": "polygon",
+        "fill": "#d6cdb3",
+        "stroke": "#a89a78",
+        "stroke_width": 0.8,
+        "alpha": 0.65,
+        "radius_px": None,
+    },
+    "verblijfsobject": {
+        "geometry": "point",
+        "fill": "#2563eb",
+        "stroke": "#1e3a8a",
+        "stroke_width": 0.6,
+        "alpha": 0.85,
+        "radius_px": 2.5,
+    },
+    "adres": {
+        "geometry": "point",
+        "fill": "#ea580c",
+        "stroke": "#9a3412",
+        "stroke_width": 0.4,
+        "alpha": 0.85,
+        "radius_px": 2.0,
+    },
+    "woonplaats": {
+        "geometry": "polygon",
+        "fill": "#bbf7d0",
+        "stroke": "#15803d",
+        "stroke_width": 0.8,
+        "alpha": 0.55,
+        "radius_px": None,
+    },
+    "standplaats": {
+        "geometry": "polygon",
+        "fill": "#fde68a",
+        "stroke": "#a16207",
+        "stroke_width": 0.8,
+        "alpha": 0.65,
+        "radius_px": None,
+    },
+    "ligplaats": {
+        "geometry": "polygon",
+        "fill": "#bae6fd",
+        "stroke": "#075985",
+        "stroke_width": 0.8,
+        "alpha": 0.65,
+        "radius_px": None,
+    },
+}
+
+# Per-layer columns for the report's sample-records tables. Each entry is
+# (translation_key, property_path). Property paths verified against the real
+# PDOK responses cached under data/bag_data/features/ — note that PDOK uses
+# snake_case (openbare_ruimte_naam, woonplaats_naam) and `bouwjaar` rather
+# than `oorspronkelijkBouwjaar`.
+BAG_SAMPLE_COLUMNS: Dict[str, List[Tuple[str, str]]] = {
+    "pand": [
+        ("col_id", "identificatie"),
+        ("col_year_built", "bouwjaar"),
+        ("col_use", "gebruiksdoel"),
+        ("col_status", "status"),
+    ],
+    "verblijfsobject": [
+        ("col_id", "identificatie"),
+        ("col_status", "status"),
+        ("col_use", "gebruiksdoel"),
+        ("col_area_m2", "oppervlakte"),
+    ],
+    "adres": [
+        ("col_id", "identificatie"),
+        ("col_postcode", "postcode"),
+        ("col_house_number", "huisnummer"),
+        ("col_street", "openbare_ruimte_naam"),
+        ("col_city", "woonplaats_naam"),
+    ],
+    "woonplaats": [
+        ("col_id", "identificatie"),
+        ("col_name", "naam"),
+        ("col_status", "status"),
+    ],
+    "standplaats": [
+        ("col_id", "identificatie"),
+        ("col_status", "status"),
+    ],
+    "ligplaats": [
+        ("col_id", "identificatie"),
+        ("col_status", "status"),
+    ],
+}
+
 # Mirror of Frontend/app.js BOUWJAAR_BUCKETS (line 1291).
 BOUWJAAR_BUCKETS: List[Tuple[str, float, float]] = [
     ("<1900", float("-inf"), 1899),
@@ -155,11 +249,33 @@ T = {
         "chart_oppervlakte_desc": "Verdeling van verblijfsobjecten naar gebruiksoppervlakte.",
         "sample_records": "Voorbeeldrecords",
         "sample_records_caption": "Eerste 50 panden in het geselecteerde gebied.",
+        "map_pand": "Kaart: gebouwen",
+        "map_verblijfsobject": "Kaart: verblijfsobjecten",
+        "map_adres": "Kaart: adressen",
+        "map_woonplaats": "Kaart: woonplaatsen",
+        "map_standplaats": "Kaart: standplaatsen",
+        "map_ligplaats": "Kaart: ligplaatsen",
+        "sample_records_section": "Steekproef van records",
+        "sample_pand": "Steekproef: gebouwen",
+        "sample_verblijfsobject": "Steekproef: verblijfsobjecten",
+        "sample_adres": "Steekproef: adressen",
+        "sample_woonplaats": "Steekproef: woonplaatsen",
+        "sample_standplaats": "Steekproef: standplaatsen",
+        "sample_ligplaats": "Steekproef: ligplaatsen",
+        "sample_footnote": "Eerste {n} van {total} records. Volledige data beschikbaar via de API.",
         "col_id": "ID",
         "col_bouwjaar": "Bouwjaar",
         "col_gebruiksdoel": "Gebruiksdoel",
         "col_oppervlakte": "Oppervlakte (m²)",
         "col_status": "Status",
+        "col_year_built": "Bouwjaar",
+        "col_use": "Gebruik",
+        "col_area_m2": "Oppervlakte (m²)",
+        "col_postcode": "Postcode",
+        "col_house_number": "Huisnummer",
+        "col_street": "Straat",
+        "col_city": "Woonplaats",
+        "col_name": "Naam",
         "axis_count": "Aantal",
         "axis_year": "Bouwjaar",
         "axis_area": "Oppervlakte (m²)",
@@ -185,11 +301,33 @@ T = {
         "chart_oppervlakte_desc": "Distribution of residential units by usable surface area.",
         "sample_records": "Sample Records",
         "sample_records_caption": "First 50 buildings in the selected area.",
+        "map_pand": "Map: Buildings",
+        "map_verblijfsobject": "Map: Residential units",
+        "map_adres": "Map: Addresses",
+        "map_woonplaats": "Map: Places",
+        "map_standplaats": "Map: Stand places",
+        "map_ligplaats": "Map: Mooring places",
+        "sample_records_section": "Sample records",
+        "sample_pand": "Sample: Buildings",
+        "sample_verblijfsobject": "Sample: Residential units",
+        "sample_adres": "Sample: Addresses",
+        "sample_woonplaats": "Sample: Places",
+        "sample_standplaats": "Sample: Stand places",
+        "sample_ligplaats": "Sample: Mooring places",
+        "sample_footnote": "First {n} of {total} records. Full data available via the API.",
         "col_id": "ID",
         "col_bouwjaar": "Year built",
         "col_gebruiksdoel": "Use",
         "col_oppervlakte": "Area (m²)",
         "col_status": "Status",
+        "col_year_built": "Year built",
+        "col_use": "Use",
+        "col_area_m2": "Area (m²)",
+        "col_postcode": "Postcode",
+        "col_house_number": "House number",
+        "col_street": "Street",
+        "col_city": "City",
+        "col_name": "Name",
         "axis_count": "Count",
         "axis_year": "Year built",
         "axis_area": "Surface area (m²)",

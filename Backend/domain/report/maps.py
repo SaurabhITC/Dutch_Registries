@@ -4,11 +4,12 @@ import asyncio
 import io
 import logging
 import math
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 from PIL import Image, ImageDraw
 from pyproj import Transformer
+from shapely.geometry import shape
 from shapely.ops import transform as shp_transform
 
 from .strings import (
@@ -235,3 +236,117 @@ async def _render_zoom_map(
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
+
+
+def _draw_overlay_polygon(
+    draw: ImageDraw.ImageDraw,
+    geom_3857,
+    bbox_3857: Tuple[float, float, float, float],
+    size: Tuple[int, int],
+    fill_rgba: Tuple[int, int, int, int],
+    stroke_rgba: Tuple[int, int, int, int],
+    stroke_w: int,
+) -> None:
+    for ring in _outer_rings(geom_3857):
+        pts = [_world_to_pixel(x, y, bbox_3857, size) for (x, y, *_) in ring]
+        if len(pts) >= 3:
+            try:
+                draw.polygon(pts, fill=fill_rgba, outline=stroke_rgba, width=stroke_w)
+            except Exception:
+                continue
+
+
+def _draw_overlay_point(
+    draw: ImageDraw.ImageDraw,
+    geom_3857,
+    bbox_3857: Tuple[float, float, float, float],
+    size: Tuple[int, int],
+    radius: float,
+    fill_rgba: Tuple[int, int, int, int],
+    stroke_rgba: Tuple[int, int, int, int],
+    stroke_w: int,
+) -> None:
+    if geom_3857.geom_type == "Point":
+        coords = [(geom_3857.x, geom_3857.y)]
+    elif geom_3857.geom_type == "MultiPoint":
+        coords = [(p.x, p.y) for p in geom_3857.geoms]
+    else:
+        try:
+            rep = geom_3857.representative_point()
+            coords = [(rep.x, rep.y)]
+        except Exception:
+            return
+    for x_m, y_m in coords:
+        px, py = _world_to_pixel(x_m, y_m, bbox_3857, size)
+        draw.ellipse(
+            [(px - radius, py - radius), (px + radius, py + radius)],
+            fill=fill_rgba,
+            outline=stroke_rgba,
+            width=stroke_w,
+        )
+
+
+async def _render_layer_overlay_map(
+    client: httpx.AsyncClient,
+    bbox_wgs84: Tuple[float, float, float, float],
+    area_geom_wgs84,
+    area_color_hex: str,
+    features: List[Dict[str, Any]],
+    style: Dict[str, Any],
+    width_px: int = 1700,
+    height_px: int = 1100,
+) -> Optional[bytes]:
+    """
+    Basemap + the given features drawn in the supplied style + the wijk/buurt
+    outline on top. Returns PNG bytes matching the zoom-map size, or None on
+    failure (e.g. basemap fetch fails).
+    """
+    try:
+        bbox_3857 = _bbox_to_3857(_pad_bbox(bbox_wgs84, 0.10))
+        bbox_3857 = _fit_bbox_to_aspect(bbox_3857, width_px, height_px)
+        base = await _fetch_basemap_image(client, bbox_3857, width_px, height_px)
+        size = base.size
+
+        overlay = Image.new("RGBA", size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(overlay, "RGBA")
+
+        alpha_byte = max(0, min(255, int(round(float(style.get("alpha", 1.0)) * 255))))
+        fill_rgba = _hex_to_rgb(style.get("fill", "#000000")) + (alpha_byte,)
+        stroke_rgba = _hex_to_rgb(style.get("stroke", "#000000")) + (255,)
+        stroke_w = max(1, int(round(float(style.get("stroke_width", 1.0)))))
+        is_point = style.get("geometry") == "point"
+        radius = float(style.get("radius_px") or 2.0)
+
+        for feat in features:
+            if not isinstance(feat, dict):
+                continue
+            geom_raw = feat.get("geometry")
+            if not geom_raw:
+                continue
+            try:
+                g = shape(geom_raw)
+                if g.is_empty:
+                    continue
+                g_3857 = _project_to_3857(g)
+            except Exception:
+                continue
+
+            if is_point:
+                _draw_overlay_point(
+                    draw, g_3857, bbox_3857, size, radius, fill_rgba, stroke_rgba, stroke_w
+                )
+            else:
+                _draw_overlay_polygon(
+                    draw, g_3857, bbox_3857, size, fill_rgba, stroke_rgba, stroke_w
+                )
+
+        composed = Image.alpha_composite(base.convert("RGBA"), overlay).convert("RGB")
+        with_outline = _draw_boundary_overlay(
+            composed, area_geom_wgs84, bbox_3857, area_color_hex, line_width=5
+        )
+        buf = io.BytesIO()
+        with_outline.save(buf, format="PNG")
+        return buf.getvalue()
+    except Exception as exc:
+        logger.warning("layer overlay map render failed: %s", exc)
+        return None

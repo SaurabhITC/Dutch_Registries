@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import io
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-import httpx
 from reportlab.graphics.shapes import Circle, Drawing, Line, Rect
 from reportlab.lib.colors import HexColor
 from reportlab.lib.enums import TA_LEFT
@@ -23,19 +23,31 @@ from reportlab.platypus import (
 )
 from shapely.geometry import shape
 
+from Backend.cache.bag_features import (
+    load_bag_features_from_cache,
+    save_bag_features_to_cache,
+)
 from Backend.domain.admin import get_area_feature
 from Backend.domain.geometry import bbox_from_feature, feature_assigned_to_area
 from Backend.pdok import BAG_COLLECTION_URLS, BAG_PAND_URL, fetch_all_features
+from Backend.pdok.client import _get_client
 
 from .charts import (
     render_bouwjaar_chart,
     render_gebruiksdoel_chart,
     render_oppervlakte_chart,
 )
-from .maps import _project_to_28992, _render_overview_map, _render_zoom_map
+from .maps import (
+    _project_to_28992,
+    _render_layer_overlay_map,
+    _render_overview_map,
+    _render_zoom_map,
+)
 from .strings import (
     AREA_OUTLINE_COLORS,
     BAG_LAYER_DISPLAY,
+    BAG_LAYER_MAP_STYLE,
+    BAG_SAMPLE_COLUMNS,
     THEME_ACCENT,
     THEME_BORDER,
     THEME_HEADING,
@@ -56,19 +68,42 @@ def _bag_label(key: str, lang: str) -> str:
 
 
 async def _fetch_bag_features(
-    area_feature: Dict[str, Any], object_type: str
+    area_feature: Dict[str, Any],
+    object_type: str,
+    level: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
+    statcode = (
+        str(area_feature.get("properties", {}).get("_statcode", "")).strip().upper()
+        if level
+        else ""
+    )
+
+    if level and statcode:
+        cached = load_bag_features_from_cache(object_type, level, statcode)
+        if cached is not None:
+            return list(cached.get("features", []) or [])
+
     bag_url = BAG_PAND_URL if object_type == "pand" else BAG_COLLECTION_URLS.get(object_type)
     if not bag_url:
         return []
     bbox = bbox_from_feature(area_feature)
     url = f"{bag_url}&bbox={bbox}"
     raw_fc = await fetch_all_features(url, ttl_seconds=15 * 60)
-    return [
+    filtered = [
         f
         for f in (raw_fc.get("features") or [])
         if feature_assigned_to_area(f, area_feature)
     ]
+
+    if level and statcode:
+        save_bag_features_to_cache(
+            object_type,
+            level,
+            statcode,
+            {"type": "FeatureCollection", "features": filtered},
+        )
+
+    return filtered
 
 
 def _format_int(value: int, lang: str) -> str:
@@ -195,27 +230,34 @@ async def build_report_pdf(
 
     requested_layers = [k for k in layers if k in BAG_LAYER_DISPLAY]
 
-    fetched_features: Dict[str, List[Dict[str, Any]]] = {}
-    for key in requested_layers:
+    async def _fetch_one(key: str) -> Tuple[str, List[Dict[str, Any]]]:
         try:
-            fetched_features[key] = await _fetch_bag_features(area_feature, key)
+            features = await _fetch_bag_features(
+                area_feature, key, level=area_type_norm
+            )
+            return key, features
         except Exception as exc:
             logger.warning("report fetch failed for layer=%s: %s", key, exc)
-            fetched_features[key] = []
+            return key, []
+
+    fetch_results = await asyncio.gather(
+        *(_fetch_one(key) for key in requested_layers)
+    )
+    fetched_features: Dict[str, List[Dict[str, Any]]] = dict(fetch_results)
 
     pand_features = fetched_features.get("pand", [])
 
-    async with httpx.AsyncClient() as client:
-        try:
-            zoom_png = await _render_zoom_map(client, bbox_tuple, geom, area_color)
-        except Exception as exc:
-            logger.warning("zoom map render failed: %s", exc)
-            zoom_png = None
-        try:
-            overview_png = await _render_overview_map(client, geom, area_color)
-        except Exception as exc:
-            logger.warning("overview map render failed: %s", exc)
-            overview_png = None
+    client = _get_client()
+    try:
+        zoom_png = await _render_zoom_map(client, bbox_tuple, geom, area_color)
+    except Exception as exc:
+        logger.warning("zoom map render failed: %s", exc)
+        zoom_png = None
+    try:
+        overview_png = await _render_overview_map(client, geom, area_color)
+    except Exception as exc:
+        logger.warning("overview map render failed: %s", exc)
+        overview_png = None
 
     styles = getSampleStyleSheet()
     h_title = ParagraphStyle(
@@ -335,6 +377,28 @@ async def build_report_pdf(
             legend_rows.append((_bag_label(key, lang), color, kind))
         story.append(_legend_table(legend_rows))
 
+    for layer_key in requested_layers:
+        layer_features = fetched_features.get(layer_key, [])
+        if not layer_features:
+            continue
+        style = BAG_LAYER_MAP_STYLE.get(layer_key)
+        if not style:
+            continue
+        try:
+            layer_map_png = await _render_layer_overlay_map(
+                client, bbox_tuple, geom, area_color, layer_features, style,
+            )
+        except Exception as exc:
+            logger.warning("layer map render failed for layer=%s: %s", layer_key, exc)
+            layer_map_png = None
+        if not layer_map_png:
+            continue
+        story.append(PageBreak())
+        story.append(Paragraph(_t(lang, f"map_{layer_key}"), h_section))
+        layer_img = RLImage(io.BytesIO(layer_map_png), width=170 * mm, height=110 * mm)
+        layer_img.hAlign = "CENTER"
+        story.append(layer_img)
+
     story.append(PageBreak())
     story.append(Paragraph(_t(lang, "summary_stats"), h_section))
 
@@ -406,12 +470,12 @@ async def build_report_pdf(
             story.append(RLImage(io.BytesIO(opp_png), width=170 * mm, height=95 * mm))
             story.append(Paragraph(_t(lang, "chart_oppervlakte_desc"), h_caption))
 
-    if pand_features:
+    any_features = any(fetched_features.get(k) for k in requested_layers)
+    if any_features:
         story.append(PageBreak())
-        story.append(Paragraph(_t(lang, "sample_records"), h_section))
-        story.append(Paragraph(_t(lang, "sample_records_caption"), h_caption))
-        sample = pand_features[:50]
-        cols = ["col_id", "col_bouwjaar", "col_gebruiksdoel", "col_oppervlakte", "col_status"]
+        story.append(Paragraph(_t(lang, "sample_records_section"), h_section))
+
+        SAMPLE_LIMIT = 50
         header_style = ParagraphStyle(
             "ReportTableHead",
             fontName="Helvetica-Bold",
@@ -426,51 +490,70 @@ async def build_report_pdf(
             textColor=HexColor(THEME_TEXT),
             leading=10,
         )
-        rows: List[List[Any]] = [[Paragraph(_t(lang, c), header_style) for c in cols]]
-        for feat in sample:
-            props = feat.get("properties") or {}
-            rid = str(props.get("identificatie") or props.get("id") or "")
-            bouwjaar = str(props.get("bouwjaar") or "")
-            gebruiksdoel = str(props.get("gebruiksdoel") or "")
-            oppervlakte = props.get("oppervlakte")
-            if isinstance(oppervlakte, (int, float)):
-                opp_str = _format_decimal(float(oppervlakte), lang, 0)
-            elif oppervlakte:
-                opp_str = str(oppervlakte)
-            else:
-                opp_str = ""
-            status = str(props.get("status") or "")
-            rows.append(
+
+        for layer_key in requested_layers:
+            features = fetched_features.get(layer_key, [])
+            if not features:
+                continue
+            columns = BAG_SAMPLE_COLUMNS.get(layer_key)
+            if not columns:
+                continue
+
+            story.append(Spacer(1, 12))
+            story.append(Paragraph(_t(lang, f"sample_{layer_key}"), h_subsection))
+
+            rows: List[List[Any]] = [
+                [Paragraph(_t(lang, col_key), header_style) for col_key, _ in columns]
+            ]
+            sampled = features[:SAMPLE_LIMIT]
+            for feat in sampled:
+                props = feat.get("properties") or {}
+                row: List[Any] = []
+                for col_key, prop_path in columns:
+                    value: Any = props.get(prop_path, "")
+                    if isinstance(value, list):
+                        value = ", ".join(str(v) for v in value)
+                    elif value is None:
+                        value = ""
+                    elif col_key == "col_area_m2" and isinstance(value, (int, float)):
+                        value = _format_decimal(float(value), lang, 0)
+                    row.append(Paragraph(str(value), cell_style))
+                rows.append(row)
+
+            col_count = len(columns)
+            col_w = (170 * mm) / col_count
+            sample_table = Table(
+                rows,
+                colWidths=[col_w] * col_count,
+                repeatRows=1,
+            )
+            ts = TableStyle(
                 [
-                    Paragraph(rid, cell_style),
-                    Paragraph(bouwjaar, cell_style),
-                    Paragraph(gebruiksdoel, cell_style),
-                    Paragraph(opp_str, cell_style),
-                    Paragraph(status, cell_style),
+                    ("BACKGROUND", (0, 0), (-1, 0), HexColor(THEME_HEADING)),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                    ("TOPPADDING", (0, 0), (-1, -1), 3),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                    ("LINEBELOW", (0, 0), (-1, 0), 0.4, HexColor(THEME_BORDER)),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ]
             )
+            for r in range(1, len(rows)):
+                if r % 2 == 0:
+                    ts.add("BACKGROUND", (0, r), (-1, r), HexColor(THEME_SUBTLE_BG))
+            sample_table.setStyle(ts)
+            story.append(sample_table)
 
-        sample_table = Table(
-            rows,
-            colWidths=[42 * mm, 20 * mm, 50 * mm, 24 * mm, 30 * mm],
-            repeatRows=1,
-        )
-        ts = TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), HexColor(THEME_HEADING)),
-                ("LEFTPADDING", (0, 0), (-1, -1), 4),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-                ("TOPPADDING", (0, 0), (-1, -1), 3),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-                ("LINEBELOW", (0, 0), (-1, 0), 0.4, HexColor(THEME_BORDER)),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ]
-        )
-        for r in range(1, len(rows)):
-            if r % 2 == 0:
-                ts.add("BACKGROUND", (0, r), (-1, r), HexColor(THEME_SUBTLE_BG))
-        sample_table.setStyle(ts)
-        story.append(sample_table)
+            story.append(Spacer(1, 4))
+            story.append(
+                Paragraph(
+                    _t(lang, "sample_footnote").format(
+                        n=len(sampled),
+                        total=len(features),
+                    ),
+                    h_caption,
+                )
+            )
 
     doc.build(story)
     return buffer.getvalue()
