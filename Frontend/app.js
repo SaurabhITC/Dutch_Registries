@@ -40,6 +40,21 @@ import {
   syncExpandedTitle,
   getExpandedChartKey,
 } from './js/charts.js';
+import {
+  escapeHtml,
+  formatBagLabel,
+  bagPopupHtml,
+} from './js/popups.js';
+import { createReportUi } from './js/reports.js';
+import { createBagLayers } from './js/bagLayers.js';
+import { createAreaSelection } from './js/areaSelection.js';
+import { createMap } from './js/map.js';
+import { createLegend } from './js/legend.js';
+import {
+  state, selectionState,
+  provinceByStatcode, gemeenteByStatcode, gmToProvinceStatcode,
+  resetController, basemapRefs, legendController, bagSummaryStore,
+} from './js/uiState.js';
 
     (function boot(){
       (function initLogo(){
@@ -129,103 +144,8 @@ import {
       const overviewModal = document.getElementById("overviewModal");
       const overviewClose = document.getElementById("overviewClose");
 
-      let homeBtnEl = null;
-      let bmBtnEl = null;
-      let basemapPopoverEl = null;
-
-
-
-      function collectionLabel(cfg){
-        if (!cfg) return '';
-        if (typeof cfg.label === 'string') return cfg.label;
-        return cfg.label?.[getCurrentLang()] || cfg.label?.nl || '';
-      }
-
-      function collectionPopupTitle(cfg){
-        if (!cfg) return '';
-        if (typeof cfg.popupTitle === 'string') return cfg.popupTitle;
-        return cfg.popupTitle?.[getCurrentLang()] || cfg.popupTitle?.nl || '';
-      }
-
       function setText(id, value){ const el = document.getElementById(id); if (el) el.textContent = value; }
       function setHtml(id, value){ const el = document.getElementById(id); if (el) el.innerHTML = value; }
-
-      function refreshSelectionLabelsOnly(){
-  if (allProvinces.length){
-    populateProvinces();
-    selProvincieEl.value = state.provinceStatcode || "";
-  } else {
-    resetProvinceSelect(tr("loadingProvinces"));
-  }
-
-  if (state.provinceStatcode){
-    const rows = allGemeenten
-      .map(f => ({ id: f.properties._statcode, name: f.properties._statnaam }))
-      .sort((a,b) => a.name.localeCompare(b.name, "nl"));
-
-    if (!rows.length){
-      resetMunicipalitySelect(tr("noMunicipalitiesFound"));
-    } else {
-      selGemeenteEl.innerHTML = `<option value="">${tr("allMunicipalities")}</option>`;
-      for (const row of rows){
-        const opt = document.createElement("option");
-        opt.value = row.id;
-        opt.textContent = `${row.name} (${row.id})`;
-        selGemeenteEl.appendChild(opt);
-      }
-      selGemeenteEl.disabled = false;
-      selGemeenteEl.value = state.gemeenteStatcode || "";
-    }
-  } else {
-    resetMunicipalitySelect(tr("selectProvinceFirst"));
-  }
-
-  if (state.gmCode){
-    const rows = visibleWijken
-      .map(f => ({ id: f.properties._statcode, name: f.properties._statnaam }))
-      .sort((a,b) => a.name.localeCompare(b.name, "nl"));
-
-    if (!rows.length){
-      resetWijkSelect(tr("noWijkFound"));
-    } else {
-      selWijkEl.innerHTML = `<option value="">${tr("allWijken")}</option>`;
-      for (const row of rows){
-        const opt = document.createElement("option");
-        opt.value = row.id;
-        opt.textContent = `${row.name} (${row.id})`;
-        selWijkEl.appendChild(opt);
-      }
-      selWijkEl.disabled = false;
-      selWijkEl.value = state.wijkStatcode || "";
-    }
-  } else {
-    resetWijkSelect(tr("selectMunicipalityFirst"));
-  }
-
-  if (state.gmCode && state.wijkStatcode){
-    const rows = visibleBuurten
-      .map(f => ({ id: f.properties._statcode, name: f.properties._statnaam }))
-      .sort((a,b) => a.name.localeCompare(b.name, "nl"));
-
-    if (!rows.length){
-      resetBuurtSelect(tr("noBuurtFound"));
-    } else {
-      selBuurtEl.innerHTML = `<option value="">${tr("allBuurten")}</option>`;
-      for (const row of rows){
-        const opt = document.createElement("option");
-        opt.value = row.id;
-        opt.textContent = `${row.name} (${row.id})`;
-        selBuurtEl.appendChild(opt);
-      }
-      selBuurtEl.disabled = false;
-      selBuurtEl.value = state.buurtStatcode || "";
-    }
-  } else {
-    resetBuurtSelect(tr("selectWijkFirst"));
-  }
-
-  updateInfoBox();
-}
 
       function openOverview(open){ overviewModal.classList.toggle("open", !!open); }
       overviewBtn.addEventListener("click", () => openOverview(true));
@@ -238,18 +158,9 @@ import {
         return;
       }
 
-      const provinceByStatcode = new Map();
-      const gemeenteByStatcode = new Map();
-      const gmToProvinceStatcode = new Map();
-      let currentBasemapMode = "brt";
-      let currentBasemapOpacity = 0.5;
-      let allProvinces = [], allGemeenten = [], allWijken = [], allBuurten = [];
-      let visibleWijken = [], visibleBuurten = [];
-      let resetToNationalView = () => {};
       let bagPopup = null;
       let bagFeatureRequestId = 0;
       const bagFeatureCache = new Map();
-      let bagSummarySectionHtml = "";
 
       // Map visualization state - declared here (top-of-file) because
       // updateLegendContext reads `activeMapVisualization` during boot via
@@ -257,118 +168,6 @@ import {
       // the Map visualization section further down the file.
       let activeMapVisualization = null;
       const savedLayerPaint = new Map();
-
-      function registrySummarySectionHtml(registryName, innerHtml){
-        return `
-          <div class="summaryMetricLabel" style="margin:0 0 8px 0;">${escapeHtml(registryName)}</div>
-          ${innerHtml}
-        `;
-      }
-
-      function updateDataSummaryCard(){
-        if (!(bagSummaryCardEl && bagSummaryBodyEl)) return;
-
-        // Panel is visible iff (any administrative area is selected) AND
-        // (any BAG layer is ticked). Otherwise it is hidden entirely so
-        // the map fills the full available width. No empty-state message
-        // is rendered inside the panel.
-        const anyAreaSelected = !!(state.provinceStatcode || state.gemeenteStatcode || state.wijkStatcode || state.buurtStatcode);
-        const anyBagLayerActive = activeBagKeys().length > 0;
-        const sections = [bagSummarySectionHtml].filter(Boolean);
-        if (!anyAreaSelected || !anyBagLayerActive || !sections.length){
-          bagSummaryCardEl.style.display = 'none';
-          delete bagSummaryBodyEl.dataset.dynamic;
-          updateReportButtonVisibility();
-          return;
-        }
-
-        bagSummaryCardEl.style.display = 'block';
-        bagSummaryBodyEl.dataset.dynamic = '1';
-        bagSummaryBodyEl.innerHTML = sections.join('<div style="height:1px;background:rgba(15,23,42,0.08);margin:12px 0;"></div>');
-        updateReportButtonVisibility();
-      }
-
-      function updateReportButtonVisibility(){
-        const btn = document.getElementById('reportDownloadBtn');
-        if (!btn) return;
-        const level = (typeof selectedAreaLevel === 'function') ? selectedAreaLevel() : '';
-        const areaFeature = (typeof selectedAreaFeature === 'function') ? selectedAreaFeature() : null;
-        const visible = (level === 'wijk' || level === 'buurt')
-          && activeBagKeys().length > 0
-          && !!areaFeature;
-        btn.hidden = !visible;
-        if (!visible){
-          const errEl = document.getElementById('reportDownloadError');
-          if (errEl){ errEl.hidden = true; errEl.textContent = ''; }
-        }
-      }
-
-      async function generateReport(){
-        const btn = document.getElementById('reportDownloadBtn');
-        const errEl = document.getElementById('reportDownloadError');
-        if (!btn) return;
-        const level = (typeof selectedAreaLevel === 'function') ? selectedAreaLevel() : '';
-        if (level !== 'wijk' && level !== 'buurt') return;
-        const areaFeature = (typeof selectedAreaFeature === 'function') ? selectedAreaFeature() : null;
-        if (!areaFeature){ return; }
-
-        if (errEl){ errEl.hidden = true; errEl.textContent = ''; }
-        btn.disabled = true;
-        btn.classList.add('is-loading');
-        btn.setAttribute('aria-busy', 'true');
-        btn.title = tr('reportDownloadInProgress');
-
-        const props = areaFeature.properties || {};
-        const areaId = String(props._statcode || '').trim().toUpperCase();
-        const areaName = String(props._statnaam || areaId || '').trim();
-
-        const gmStatcode = state.gemeenteStatcode;
-        const pvStatcode = state.provinceStatcode;
-        const municipalityName = gmStatcode ? (gemeenteByStatcode.get(gmStatcode)?.properties?._statnaam || '') : '';
-        const provinceName = pvStatcode ? (provinceByStatcode.get(pvStatcode)?.properties?._statnaam || '') : '';
-        const bounds = geojsonBounds(areaFeature);
-        const bbox = bounds
-          ? [bounds[0][0], bounds[0][1], bounds[1][0], bounds[1][1]]
-          : [];
-
-        const body = {
-          area_type: level,
-          area_id: areaId,
-          area_name: areaName,
-          parent_municipality: municipalityName,
-          parent_province: provinceName,
-          layers: activeBagKeys(),
-          language: getCurrentLang(),
-          bbox,
-        };
-
-        try {
-          const { blob, filename: serverFilename } = await postReportRequest(body);
-          const today = new Date();
-          const datePart = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
-          const filename = serverFilename || `${(areaName || areaId || 'report').replace(/[^A-Za-z0-9_-]/g,'_')}_${datePart}.pdf`;
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = filename;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          setTimeout(() => URL.revokeObjectURL(url), 2000);
-        } catch (err){
-          console.error('report generation failed', err);
-          if (errEl){
-            errEl.textContent = tr('reportDownloadFailed');
-            errEl.hidden = false;
-          }
-        } finally {
-          btn.disabled = false;
-          btn.classList.remove('is-loading');
-          btn.removeAttribute('aria-busy');
-          btn.title = tr('reportDownload');
-        }
-      }
-
 
       function retryAttemptMessage(label, attempt, totalAttempts, delayMs){
         return `${tr('summaryRetryingPrefix')}${label}. ${tr('summaryRetryAttemptPrefix')}${attempt}${tr('summaryRetryAttemptSeparator')}${totalAttempts}. ${tr('summaryRetryWaitPrefix')}${Math.ceil(delayMs / 1000)}${tr('summaryRetryWaitSuffix')}`;
@@ -380,8 +179,8 @@ import {
       }
 
       function selectedAreaFeature(){
-        if (state.buurtStatcode) return visibleBuurten.find(x => x.properties._statcode === state.buurtStatcode) || allBuurten.find(x => x.properties._statcode === state.buurtStatcode) || null;
-        if (state.wijkStatcode) return visibleWijken.find(x => x.properties._statcode === state.wijkStatcode) || allWijken.find(x => x.properties._statcode === state.wijkStatcode) || null;
+        if (state.buurtStatcode) return selectionState.visibleBuurten.find(x => x.properties._statcode === state.buurtStatcode) || selectionState.allBuurten.find(x => x.properties._statcode === state.buurtStatcode) || null;
+        if (state.wijkStatcode) return selectionState.visibleWijken.find(x => x.properties._statcode === state.wijkStatcode) || selectionState.allWijken.find(x => x.properties._statcode === state.wijkStatcode) || null;
         if (state.gemeenteStatcode) return gemeenteByStatcode.get(state.gemeenteStatcode) || null;
         if (state.provinceStatcode) return provinceByStatcode.get(state.provinceStatcode) || null;
         return null;
@@ -395,8 +194,78 @@ import {
         return '';
       }
 
-      const state = { provinceStatcode:"", gemeenteStatcode:"", gmCode:"", wijkStatcode:"", buurtStatcode:"", showGemeente:true, showWijk:true, showBuurt:true };
-      const emptyFilter = ["==", ["get", "_statcode"], "__none__"];
+      function municipalityCodeFromStatcode(statcode){ const m = String(statcode || "").trim().toUpperCase().match(/^(?:GM|WK|BU)(\d{4})/); return m ? m[1] : ""; }
+      function normalizeGmCode(v){ const s = String(v ?? "").trim(); return !s ? "" : (s.startsWith("-") ? s : s.padStart(4, "0")); }
+      function wijkBody(statcode){ const m = String(statcode || "").match(/WK(.+)/i); return m ? m[1] : ""; }
+      function prettyName(props){ return String(props?.statnaam || props?.naam || props?.name || ""); }
+      function prettyStatcode(props){ return String(props?.statcode || props?.code || ""); }
+      
+      
+      const {
+        map, geojsonBounds, firstNonBackgroundLayerId, ensureWhiteBackground,
+        hideBrkMunicipalityLayers, enforceBoundaryStackOrder, setBasemap,
+        addAdminSourcesAndLayers, ensureBrtLayer, ensureLuchtfotoLayer,
+        addOutsideNlMask, addWorldCountryOutlines,
+        setBoundaryLayerVisible, boundaryLayerVisible,
+        updateAllBoundaryToggleButtons, applyBoundaryLayerVisibility,
+        applyLayerFilters, fitToFeature, featureUnderPointer,
+      } = createMap({
+        tr, fetchWithTimeout, resetController, basemapRefs, state, selectionState,
+        legendController, refreshBagView, wijkBody,
+        toggleGemeenteLayerEl, toggleWijkLayerEl, toggleBuurtLayerEl,
+        legendMunicipalityRowEl, legendWijkRowEl, legendBuurtRowEl,
+      });
+      const {
+        activeBagKeys, bagSourceId, bagLayerIdsForKey,
+        allBagRenderableLayerIds, allDataRenderableLayerIds,
+        bagKeyFromLayerId, setBagKeyData, setBagKeyVisibility,
+        clearAllBagLayers, ensureBagFeatureLayers,
+        bagCacheKey, bagLevelLabel,
+      } = createBagLayers({ map, bagToggleEls, tr });
+      const { updateReportButtonVisibility, generateReport } = createReportUi({
+        tr, postReportRequest,
+        selectedAreaLevel, selectedAreaFeature,
+        activeBagKeys, state,
+        gemeenteByStatcode, provinceByStatcode,
+        getCurrentLang, geojsonBounds,
+      });
+      const {
+        resetProvinceSelect, resetMunicipalitySelect, resetWijkSelect, resetBuurtSelect,
+        populateProvinces, populateMunicipalities, populateWijken, populateBuurten,
+        clearBelowProvince, clearBelowMunicipality, clearBelowWijk,
+        selectProvince, selectMunicipality, selectWijk, selectBuurt,
+        selectProvinceByFeature, selectMunicipalityByFeature, selectWijkByFeature, selectBuurtByFeature,
+        loadAdminData,
+      } = createAreaSelection({
+        map, tr, fetchBackendJson, state, selectionState,
+        provinceByStatcode, gemeenteByStatcode, gmToProvinceStatcode,
+        selProvincieEl, selGemeenteEl, selWijkEl, selBuurtEl,
+        applyLayerFilters, legendController, fitToFeature,
+        prettyStatcode, municipalityCodeFromStatcode,
+      });
+      const legendApi = createLegend({
+        state, selectionState, bagSummaryStore,
+        getActiveMapVisualization: () => activeMapVisualization,
+        tr, getCurrentLang,
+        prettyName, formatNumber,
+        activeBagKeys, bagLevelLabel,
+        updateReportButtonVisibility,
+        boundaryLayerVisible,
+        populateProvinces,
+        resetProvinceSelect, resetMunicipalitySelect, resetWijkSelect, resetBuurtSelect,
+        renderBagCharts,
+        bagSummaryCardEl, bagSummaryBodyEl,
+        legendBagRowsEl, legendNationalRowEl, legendProvinceRowEl,
+        legendMunicipalityRowEl, legendWijkRowEl, legendBuurtRowEl,
+        legendBoundarySectionEl, legendDataSectionEl, legendEl,
+        selProvincieEl, selGemeenteEl, selWijkEl, selBuurtEl, selInfoEl,
+        provinceByStatcode, gemeenteByStatcode,
+      });
+      Object.assign(legendController, legendApi);
+      const {
+        renderBagSummaryMessage, renderBagLayerSummarySkeleton,
+        renderBagLayerSummary, clearBagSummaryPanel, collectionLabel,
+      } = legendApi;
       initCharts({
         getCachedBagFeatures,
         getActiveBagKeys: activeBagKeys,
@@ -422,232 +291,24 @@ import {
         setText,
         setHtml,
         updateAllBoundaryToggleButtons,
-        updateLegendContext,
+        updateLegendContext: () => legendController.updateLegendContext(),
         syncExpandedTitle,
-        refreshSelectionLabelsOnly,
-        getMutableRefs: () => ({ homeBtnEl, bmBtnEl, basemapPopoverEl, expandedChartKey: getExpandedChartKey() }),
+        refreshSelectionLabelsOnly: () => legendController.refreshSelectionLabelsOnly(),
+        getMutableRefs: () => ({
+          homeBtnEl: basemapRefs.homeBtnEl,
+          bmBtnEl: basemapRefs.bmBtnEl,
+          basemapPopoverEl: basemapRefs.basemapPopoverEl,
+          expandedChartKey: getExpandedChartKey(),
+        }),
         onLanguageChange: () => {
           refreshBagView().catch(err => console.warn("BAG refresh failed", err));
         },
       });
-      updateDataSummaryCard();
-
-      function municipalityCodeFromStatcode(statcode){ const m = String(statcode || "").trim().toUpperCase().match(/^(?:GM|WK|BU)(\d{4})/); return m ? m[1] : ""; }
-      function normalizeGmCode(v){ const s = String(v ?? "").trim(); return !s ? "" : (s.startsWith("-") ? s : s.padStart(4, "0")); }
-      function wijkBody(statcode){ const m = String(statcode || "").match(/WK(.+)/i); return m ? m[1] : ""; }
-      function prettyName(props){ return String(props?.statnaam || props?.naam || props?.name || ""); }
-      function prettyStatcode(props){ return String(props?.statcode || props?.code || ""); }
-      
-      
-      function geojsonBounds(feature){
-        let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
-        function scanCoords(coords){ if (!coords) return; if (typeof coords[0] === "number" && typeof coords[1] === "number"){ const x = coords[0], y = coords[1]; if (x < minX) minX = x; if (y < minY) minY = y; if (x > maxX) maxX = x; if (y > maxY) maxY = y; return; } for (const c of coords) scanCoords(c); }
-        function scanGeom(geom){ if (!geom) return; if (geom.type === "GeometryCollection"){ for (const g of (geom.geometries || [])) scanGeom(g); return; } scanCoords(geom.coordinates); }
-        scanGeom(feature?.geometry); return isFinite(minX) ? [[minX, minY], [maxX, maxY]] : null;
-      }
-
-      function firstLayerId(){ const layers = map.getStyle().layers || []; return layers.length ? layers[0].id : null; }
-      function firstNonBackgroundLayerId(){ const layers = map.getStyle().layers || []; for (const lyr of layers){ if (lyr.type !== "background") return lyr.id; } return null; }
-      function ensureWhiteBackground(){ const layers = map.getStyle().layers || []; const bg = layers.find(l => l.type === "background"); if (bg){ map.setPaintProperty(bg.id, "background-color", "#ffffff"); map.setPaintProperty(bg.id, "background-opacity", 1.0); } else { map.addLayer({ id:"bg-white", type:"background", paint:{"background-color":"#ffffff","background-opacity":1.0} }, firstLayerId() || undefined); } }
-      function hideBrkMunicipalityLayers(){ for (const lyr of (map.getStyle().layers || [])){ if (lyr["source-layer"] === "gemeentegebied"){ try{ map.setLayoutProperty(lyr.id, "visibility", "none"); }catch(_){} } } }
-      function brkLineLayerIds(sourceLayerName){ return (map.getStyle().layers || []).filter(lyr => lyr.type === "line" && lyr["source-layer"] === sourceLayerName).map(lyr => lyr.id); }
-      function moveLayerIdsToFront(ids){ for (const id of ids){ if (map.getLayer(id)){ try{ map.moveLayer(id); }catch(_){ } } } }
-      function enforceBoundaryStackOrder(){ const orderedGroups = [brkLineLayerIds("provinciegebied"), ["world-country-outline-halo", "world-country-outline"], brkLineLayerIds("landgebied"), ["cbs-provincie-selected"], ["cbs-gemeente-line", "cbs-gemeente-selected"], ["cbs-wijk-line", "cbs-wijk-selected"], ["cbs-buurt-line", "cbs-buurt-selected"], ["cbs-provincie-hit", "cbs-gemeente-hit", "cbs-wijk-hit", "cbs-buurt-hit"]]; for (const group of orderedGroups) moveLayerIdsToFront(group); }
-      function outerRings(geom){ if (!geom) return []; if (geom.type === "Polygon") return [geom.coordinates?.[0]].filter(Boolean); if (geom.type === "MultiPolygon") return (geom.coordinates || []).map(p => p?.[0]).filter(Boolean); return []; }
-      async function ensureBrtLayer(insertBeforeId){ if (!map.getSource("brt-raster")) map.addSource("brt-raster", { type:"raster", tiles:[BRT_TILES], tileSize:256, attribution:"© Kadaster / PDOK (BRT-A)" }); if (!map.getLayer("brt-raster")) map.addLayer({ id:"brt-raster", type:"raster", source:"brt-raster", paint:{ "raster-opacity": currentBasemapMode === "brt" ? currentBasemapOpacity : 0.0 } }, insertBeforeId || undefined); }
-      function applyBasemapOpacity(){
-        if (map.getLayer("brt-raster")) map.setPaintProperty("brt-raster", "raster-opacity", currentBasemapMode === "brt" ? currentBasemapOpacity : 0.0);
-        if (map.getLayer("luchtfoto-raster")) map.setPaintProperty("luchtfoto-raster", "raster-opacity", currentBasemapMode === "luchtfoto" ? currentBasemapOpacity : 0.0);
-      }
-      function setBasemap(mode){ currentBasemapMode = mode; applyBasemapOpacity(); }
-      async function discoverLuchtfotoTemplateFromCapabilities(){
-        const r = await fetchWithTimeout(LUCHTFOTO_WMTS_CAPS, 12000); if (!r.ok) throw new Error("WMTS GetCapabilities failed: " + r.status); const xml = await r.text(); const doc = new DOMParser().parseFromString(xml, "text/xml"); const layers = Array.from(doc.getElementsByTagName("Layer"));
-        const firstByTag = (el, names) => { for (const n of names){ const got = el.getElementsByTagName(n)[0]; if (got) return got; } return null; };
-        const text = el => (el && (el.textContent || "").trim()) || ""; const layerIdentifier = layerEl => text(firstByTag(layerEl, ["ows:Identifier","Identifier"]));
-        let chosen = layers.find(l => /actueel/i.test(layerIdentifier(l)) && /ortho25/i.test(layerIdentifier(l))) || layers.find(l => /actueel/i.test(layerIdentifier(l))); if (!chosen) throw new Error("No 'Actueel' layer found in WMTS capabilities");
-        const layerId = layerIdentifier(chosen); const styleId = (Array.from(chosen.getElementsByTagName("Style")).map(s => text(firstByTag(s, ["ows:Identifier","Identifier"]))).filter(Boolean)[0]) || "default"; const tmsIds = Array.from(chosen.getElementsByTagName("TileMatrixSetLink")).map(x => text(firstByTag(x, ["TileMatrixSet"]))).filter(Boolean); const tmsId = tmsIds.find(x => /googlemapscompatible/i.test(x)) || tmsIds.find(x => /webmercator|3857/i.test(x)) || tmsIds[0];
-        const tileRes = Array.from(chosen.getElementsByTagName("ResourceURL")).find(x => (x.getAttribute("resourceType") || "").toLowerCase() === "tile"); let template = tileRes ? (tileRes.getAttribute("template") || "") : ""; if (!template) throw new Error("WMTS capabilities: missing ResourceURL tile template");
-        return template.replaceAll("{Layer}", layerId).replaceAll("{Style}", styleId).replaceAll("{TileMatrixSet}", tmsId).replaceAll("{TileMatrix}", "{z}").replaceAll("{TileRow}", "{y}").replaceAll("{TileCol}", "{x}");
-      }
-      function lonLatToTileXY(lon, lat, z){ const n = Math.pow(2, z), x = Math.floor((lon + 180) / 360 * n), latRad = lat * Math.PI / 180, y = Math.floor((1 - Math.log(Math.tan(latRad) + 1/Math.cos(latRad)) / Math.PI) / 2 * n); return {x, y}; }
-      async function pickWorkingLuchtfotoTemplate(){ const z = 9, {x, y} = lonLatToTileXY(5.3, 52.1, z); const candidates = ["https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/actueel_ortho25/default/GoogleMapsCompatible/{z}/{y}/{x}.jpeg", "https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/actueel_ortho25/default/GoogleMapsCompatible/{z}/{x}/{y}.jpeg", "https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/actueel_ortho25/default/EPSG:3857/{z}/{y}/{x}.jpeg", "https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/actueel_ortho25/default/EPSG:3857/{z}/{x}/{y}.jpeg", "https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/actueel_ortho25/default/GoogleMapsCompatible/{z}/{y}/{x}.png", "https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/actueel_ortho25/default/GoogleMapsCompatible/{z}/{x}/{y}.png"]; for (const tpl of candidates){ try{ const r = await fetchWithTimeout(tpl.replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y)), 5000); if (r.ok) return tpl; }catch(_){} } return null; }
-      async function ensureLuchtfotoLayer(){ if (map.getLayer("luchtfoto-raster")) return; let template = null; try{ template = await discoverLuchtfotoTemplateFromCapabilities(); }catch(err){ console.warn("Luchtfoto WMTS discovery failed, trying fallbacks:", err); } if (!template) template = await pickWorkingLuchtfotoTemplate(); if (!template) throw new Error("Could not resolve a working Luchtfoto template."); map.addSource("luchtfoto-raster", { type:"raster", tiles:[template], tileSize:256, attribution:"© Kadaster / PDOK (Luchtfoto RGB)" }); const before = map.getLayer("mask-outside-nl") ? "mask-outside-nl" : firstNonBackgroundLayerId() || undefined; map.addLayer({ id:"luchtfoto-raster", type:"raster", source:"luchtfoto-raster", paint:{ "raster-opacity": currentBasemapMode === "luchtfoto" ? currentBasemapOpacity : 0.0 } }, before); }
-      async function addOutsideNlMask(beforeId){ if (map.getSource("outside-nl-mask")) return; const resp = await fetchWithTimeout(LAND_FEATURES_URL, 12000); if (!resp.ok) throw new Error("landgebied fetch failed: " + resp.status); const gj = await resp.json(); const feat = (gj.features && gj.features[0]) ? gj.features[0] : null; if (!feat?.geometry) throw new Error("No landgebied geometry returned"); const holes = outerRings(feat.geometry).map(ring => Array.isArray(ring) ? ring.slice().reverse() : ring).filter(ring => ring && ring.length >= 4); if (!holes.length) return; const worldRing = [[-180,-85.0511],[180,-85.0511],[180,85.0511],[-180,85.0511],[-180,-85.0511]]; map.addSource("outside-nl-mask", { type:"geojson", data:{ type:"Feature", properties:{}, geometry:{ type:"Polygon", coordinates:[worldRing, ...holes] } } }); map.addLayer({ id:"mask-outside-nl", type:"fill", source:"outside-nl-mask", paint:{ "fill-color":"#ffffff", "fill-opacity":1.0 } }, beforeId || undefined); }
-      async function addWorldCountryOutlines(beforeId){ if (map.getSource("world-countries")) return; const topo = await (await fetchWithTimeout(WORLD_TOPO, 12000)).json(); const countries = topojson.feature(topo, topo.objects.countries); map.addSource("world-countries", { type:"geojson", data:countries }); map.addLayer({ id:"world-country-outline-halo", type:"line", source:"world-countries", filter:["!=", ["id"], 528], maxzoom:7.50, layout:{ "line-join":"round", "line-cap":"round" }, paint:{ "line-color":"#8a8a8a", "line-opacity":0.85, "line-width":["interpolate",["linear"],["zoom"],0,0.9,5,1.4,10,2.1] } }, beforeId || undefined); map.addLayer({ id:"world-country-outline", type:"line", source:"world-countries", filter:["!=", ["id"], 528], maxzoom:6, layout:{ "line-join":"round", "line-cap":"round" }, paint:{ "line-color":"#4a4a4a", "line-opacity":0.95, "line-width":["interpolate",["linear"],["zoom"],0,0.35,5,0.6,10,1.0] } }, beforeId || undefined); }
-      class HomeBasemapControl{ onAdd(map){ this.map = map; this._open = false; const container = document.createElement("div"); container.className = "maplibregl-ctrl maplibregl-ctrl-group customCtrl"; const homeBtn = document.createElement("button"); homeBtn.type = "button"; homeBtn.title = tr("homeTitle"); homeBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>`; homeBtn.addEventListener("click", (e)=>{ e.stopPropagation(); resetToNationalView(); map.fitBounds(NL_BOUNDS, { padding: NL_FIT_PADDING, duration: 600 }); }); const bmBtn = document.createElement("button"); bmBtn.type = "button"; bmBtn.title = tr("basemapTitle"); bmBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5-9-5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M3 12l9 5 9-5" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" opacity="0.9"/><path d="M3 16l9 5 9-5" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" opacity="0.75"/></svg>`; const pop = document.createElement("div"); pop.className = "bmPopover"; pop.innerHTML = `<div class="bmTitle">${tr("basemapHeader")}</div><label class="bmOption"><input type="radio" name="basemap" value="brt" checked /><span>${tr("basemapBrt")}</span></label><label class="bmOption"><input type="radio" name="basemap" value="luchtfoto" /><span>${tr("basemapLuchtfoto")}</span></label><label class="bmOption"><input type="radio" name="basemap" value="none" /><span>${tr("basemapNone")}</span></label><div class="bmDivider"></div><div class="bmSliderWrap"><div class="bmSliderHead"><span>${tr("transparency")}</span><span class="bmValue" id="bmOpacityValue">50%</span></div><input class="bmRange" id="bmOpacityRange" type="range" min="0" max="100" step="1" value="50" /></div>`; homeBtnEl = homeBtn; bmBtnEl = bmBtn; basemapPopoverEl = pop; const opacityRange = pop.querySelector("#bmOpacityRange"); const opacityValue = pop.querySelector("#bmOpacityValue"); const syncOpacityLabel = () => { if (opacityValue) opacityValue.textContent = `${Math.round(currentBasemapOpacity * 100)}%`; if (opacityRange) opacityRange.value = String(Math.round(currentBasemapOpacity * 100)); }; syncOpacityLabel(); const openPopover = open => { this._open = !!open; pop.classList.toggle("open", this._open); }; bmBtn.addEventListener("click", e => { e.stopPropagation(); openPopover(!this._open); }); pop.addEventListener("change", async e => { const t = e.target; if (!t) return; if (t.name === "basemap"){ const mode = pop.querySelector('input[name="basemap"]:checked')?.value || "brt"; if (mode === "luchtfoto"){ try{ await ensureLuchtfotoLayer(); } catch(err){ console.warn(err); pop.querySelector('input[value="brt"]').checked = true; } } setBasemap(pop.querySelector('input[name="basemap"]:checked')?.value || "brt"); } }); opacityRange?.addEventListener("input", e => { currentBasemapOpacity = Number(e.target.value || 50) / 100; syncOpacityLabel(); applyBasemapOpacity(); }); this._docClick = e => { if (!this._open) return; if (!container.contains(e.target)) openPopover(false); }; this._docKey = e => { if (e.key === "Escape") openPopover(false); }; document.addEventListener("click", this._docClick); document.addEventListener("keydown", this._docKey); container.appendChild(homeBtn); container.appendChild(bmBtn); container.appendChild(pop); this._container = container; return container; } onRemove(){ if (this._container?.parentNode) this._container.parentNode.removeChild(this._container); document.removeEventListener("click", this._docClick); document.removeEventListener("keydown", this._docKey); this.map = undefined; } }
-      const map = new maplibregl.Map({ container: "map", style: PDOK_STYLE_URL, center: DEFAULT_VIEW.center, zoom: DEFAULT_VIEW.zoom, bearing: DEFAULT_VIEW.bearing, pitch: DEFAULT_VIEW.pitch, attributionControl: true }); map.addControl(new HomeBasemapControl(), "top-left"); map.addControl(new maplibregl.NavigationControl(), "top-left");
-      function addAdminSourcesAndLayers(){
-        if (!map.getSource("cbs-provincie")) map.addSource("cbs-provincie", { type:"geojson", data:{type:"FeatureCollection", features:[]} });
-        if (!map.getSource("cbs-gemeente")) map.addSource("cbs-gemeente", { type:"geojson", data:{type:"FeatureCollection", features:[]} });
-        if (!map.getSource("cbs-wijk")) map.addSource("cbs-wijk", { type:"geojson", data:{type:"FeatureCollection", features:[]} });
-        if (!map.getSource("cbs-buurt")) map.addSource("cbs-buurt", { type:"geojson", data:{type:"FeatureCollection", features:[]} });
-        if (!map.getLayer("cbs-provincie-hit")) map.addLayer({ id:"cbs-provincie-hit", type:"fill", source:"cbs-provincie", paint:{ "fill-color":"#000000", "fill-opacity":0.0 } });
-        if (!map.getLayer("cbs-provincie-selected")) map.addLayer({ id:"cbs-provincie-selected", type:"line", source:"cbs-provincie", filter: emptyFilter, paint:{ "line-color":"#be123c", "line-width":["interpolate", ["linear"], ["zoom"], 6, 1.8, 9, 2.8, 12, 4.0], "line-opacity":1.0 } });
-        if (!map.getLayer("cbs-gemeente-hit")) map.addLayer({ id:"cbs-gemeente-hit", type:"fill", source:"cbs-gemeente", filter: emptyFilter, paint:{ "fill-color":"#000000", "fill-opacity":0.0 } });
-        if (!map.getLayer("cbs-gemeente-line")) map.addLayer({ id:"cbs-gemeente-line", type:"line", source:"cbs-gemeente", filter: emptyFilter, paint:{ "line-color":"#111827", "line-width":["interpolate", ["linear"], ["zoom"], 6, 0.9, 9, 1.3, 12, 2.0], "line-opacity": 0.95 } });
-        if (!map.getLayer("cbs-gemeente-selected")) map.addLayer({ id:"cbs-gemeente-selected", type:"line", source:"cbs-gemeente", filter: emptyFilter, paint:{ "line-color":"#0ea5e9", "line-width":["interpolate", ["linear"], ["zoom"], 6, 1.4, 9, 2.4, 12, 3.8], "line-opacity":1.0 } });
-        if (!map.getLayer("cbs-wijk-hit")) map.addLayer({ id:"cbs-wijk-hit", type:"fill", source:"cbs-wijk", filter: emptyFilter, minzoom:9.5, paint:{ "fill-color":"#000000", "fill-opacity":0.0 } });
-        if (!map.getLayer("cbs-wijk-line")) map.addLayer({ id:"cbs-wijk-line", type:"line", source:"cbs-wijk", filter: emptyFilter, minzoom:9.5, paint:{ "line-color":"#d97706", "line-width":["interpolate", ["linear"], ["zoom"], 9, 0.8, 12, 1.4, 15, 2.2], "line-opacity":0.9 } });
-        if (!map.getLayer("cbs-wijk-selected")) map.addLayer({ id:"cbs-wijk-selected", type:"line", source:"cbs-wijk", filter: emptyFilter, minzoom:9.5, paint:{ "line-color":"#b45309", "line-width":["interpolate", ["linear"], ["zoom"], 9, 1.3, 12, 2.2, 15, 3.0], "line-opacity":1.0 } });
-        if (!map.getLayer("cbs-buurt-hit")) map.addLayer({ id:"cbs-buurt-hit", type:"fill", source:"cbs-buurt", filter: emptyFilter, minzoom:11, paint:{ "fill-color":"#000000", "fill-opacity":0.0 } });
-        if (!map.getLayer("cbs-buurt-line")) map.addLayer({ id:"cbs-buurt-line", type:"line", source:"cbs-buurt", filter: emptyFilter, minzoom:11, paint:{ "line-color":"#7c3aed", "line-width":["interpolate", ["linear"], ["zoom"], 11, 0.6, 14, 1.0, 16, 1.6], "line-opacity":0.9 } });
-        if (!map.getLayer("cbs-buurt-selected")) map.addLayer({ id:"cbs-buurt-selected", type:"line", source:"cbs-buurt", filter: emptyFilter, minzoom:11, paint:{ "line-color":"#5b21b6", "line-width":["interpolate", ["linear"], ["zoom"], 11, 1.0, 14, 1.8, 16, 2.6], "line-opacity":1.0 } });
-      }
-
-      function escapeHtml(value){
-        return String(value ?? '').replace(/[&<>"']/g, ch => (
-          {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]
-        ));
-      }
-
-      function formatBagLabel(key){
-        return String(key || '')
-          .replace(/^_+/, '')
-          .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-          .replace(/_/g, ' ')
-          .split(' ')
-          .map(part => part ? part[0].toUpperCase() + part.slice(1) : part)
-          .join(' ');
-      }
+      legendController.updateDataSummaryCard();
 
       function formatNumber(value){
         const n = Number(value);
         return Number.isFinite(n) ? n.toLocaleString(tr('formatLocale')) : String(value ?? '');
-      }
-
-      function bagLevelLabel(level){
-        if (level === 'province') return tr('bagSummaryProvince');
-        if (level === 'municipality') return tr('bagSummaryMunicipality');
-        if (level === 'wijk') return tr('bagSummaryWijk');
-        if (level === 'buurt') return tr('bagSummaryBuurt');
-        return '';
-      }
-
-      function activeBagKeys(){
-        return ALL_BAG_KEYS.filter(key => !!bagToggleEls[key]?.checked);
-      }
-
-      function bagSourceId(key){
-        return `bag-${key}-features`;
-      }
-
-      function bagLayerIdsForKey(key){
-        const cfg = BAG_COLLECTIONS[key];
-        if (!cfg) return [];
-        return cfg.geometry === 'point'
-          ? [`bag-${key}-circle`]
-          : [`bag-${key}-fill`, `bag-${key}-line`];
-      }
-
-      function allBagRenderableLayerIds(){
-        return ALL_BAG_KEYS.flatMap(key => bagLayerIdsForKey(key)).filter(id => map.getLayer(id));
-      }
-
-      function allDataRenderableLayerIds(){
-        return allBagRenderableLayerIds();
-      }
-
-      function bagKeyFromLayerId(layerId){
-        const m = String(layerId || '').match(/^bag-(.+?)-(fill|line|circle)$/);
-        return m ? m[1] : '';
-      }
-
-      function setBagKeyData(key, fc){
-        const source = map.getSource(bagSourceId(key));
-        if (source) source.setData(fc || { type:'FeatureCollection', features: [] });
-      }
-
-      function setBagKeyVisibility(key, visible){
-        for (const id of bagLayerIdsForKey(key)){
-          if (map.getLayer(id)){
-            map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
-          }
-        }
-      }
-
-      function clearAllBagLayers(){
-        for (const key of ALL_BAG_KEYS){
-          setBagKeyData(key, { type:'FeatureCollection', features: [] });
-          setBagKeyVisibility(key, false);
-        }
-      }
-
-      function ensureBagFeatureLayers(){
-        for (const [key, cfg] of Object.entries(BAG_COLLECTIONS)){
-          const sourceId = bagSourceId(key);
-          if (!map.getSource(sourceId)){
-            map.addSource(sourceId, {
-              type:'geojson',
-              data:{ type:'FeatureCollection', features: [] }
-            });
-          }
-
-          if (cfg.geometry === 'point'){
-            const layerId = `bag-${key}-circle`;
-            if (!map.getLayer(layerId)){
-              map.addLayer({
-                id: layerId,
-                type: 'circle',
-                source: sourceId,
-                layout: { visibility:'none' },
-                paint: {
-                  'circle-color': cfg.circle,
-                  'circle-radius': [
-                    'interpolate', ['linear'], ['zoom'],
-                    8, cfg.radius - 1.0,
-                    11, cfg.radius,
-                    15, cfg.radius + 1.2
-                  ],
-                  'circle-stroke-color': '#ffffff',
-                  'circle-stroke-width': 1.2,
-                  'circle-opacity': 0.92
-                }
-              }, 'cbs-provincie-hit');
-            }
-          } else {
-            const fillId = `bag-${key}-fill`;
-            const lineId = `bag-${key}-line`;
-
-            if (!map.getLayer(fillId)){
-              map.addLayer({
-                id: fillId,
-                type:'fill',
-                source: sourceId,
-                layout:{ visibility:'none' },
-                paint:{
-                  'fill-color': cfg.fill,
-                  'fill-opacity': [
-                    'interpolate', ['linear'], ['zoom'],
-                    7, Math.max(0.05, cfg.fillOpacity - 0.10),
-                    10, Math.max(0.08, cfg.fillOpacity - 0.05),
-                    13, cfg.fillOpacity,
-                    16, Math.min(0.68, cfg.fillOpacity + 0.10)
-                  ]
-                }
-              }, 'cbs-provincie-hit');
-            }
-
-            if (!map.getLayer(lineId)){
-              map.addLayer({
-                id: lineId,
-                type:'line',
-                source: sourceId,
-                layout:{ visibility:'none' },
-                paint:{
-                  'line-color': cfg.line,
-                  'line-opacity': 0.92,
-                  'line-width': [
-                    'interpolate', ['linear'], ['zoom'],
-                    7, 0.35,
-                    10, 0.65,
-                    13, 1.0,
-                    16, 1.5
-                  ]
-                }
-              }, 'cbs-provincie-hit');
-            }
-          }
-        }
       }
 
       function queryDataFeature(point){
@@ -655,104 +316,6 @@ import {
         if (!layers.length) return null;
         const feats = map.queryRenderedFeatures(point, { layers });
         return feats && feats.length ? feats[0] : null;
-      }
-
-      function renderUrlArrayHtml(arr){
-        if (!Array.isArray(arr) || arr.length === 0) return null;
-        if (!arr.every(item => typeof item === 'string' && /^https?:\/\//i.test(item.trim()))) return null;
-        if (arr.length === 1){
-          const href = escapeHtml(arr[0].trim());
-          return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="text-decoration:underline;">${escapeHtml('Link')}</a>`;
-        }
-        return arr
-          .map((url, i) => {
-            const href = escapeHtml(url.trim());
-            return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="text-decoration:underline;">${escapeHtml('Link ' + (i + 1))}</a>`;
-          })
-          .join(', ');
-      }
-
-      function popupValueHtml(value){
-        if (value === undefined) return undefined;
-        if (value === null) return 'null';
-
-        if (typeof value === 'string'){
-          const trimmed = value.trim();
-          if (trimmed.startsWith('[') && trimmed.endsWith(']')){
-            try{
-              const parsed = JSON.parse(trimmed);
-              const html = renderUrlArrayHtml(parsed);
-              if (html !== null) return html;
-            }catch(_){ /* fall through */ }
-          }
-          if (/^https?:\/\//i.test(trimmed)){
-            const href = escapeHtml(trimmed);
-            return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="text-decoration:underline;">Link</a>`;
-          }
-          return escapeHtml(value);
-        }
-
-        if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint'){
-          return escapeHtml(String(value));
-        }
-
-        if (Array.isArray(value)){
-          const html = renderUrlArrayHtml(value);
-          if (html !== null) return html;
-        }
-
-        try{
-          return escapeHtml(JSON.stringify(value));
-        }catch(_){
-          return escapeHtml(String(value));
-        }
-      }
-
-      function bagPopupHtml(feature){
-        const props = feature?.properties || {};
-        const bagKey = bagKeyFromLayerId(feature?.layer?.id);
-        const cfg = BAG_COLLECTIONS[bagKey];
-        const title = collectionPopupTitle(cfg) || tr('bagPopupDefaultTitle');
-        const rows = [];
-        const seen = new Set();
-
-        function pushRow(keyName, value){
-          if (seen.has(keyName) || value === undefined) return;
-          seen.add(keyName);
-          const html = popupValueHtml(value);
-          rows.push(
-            `<div class="summaryRow"><span>${escapeHtml(formatBagLabel(keyName))}</span><strong style="white-space:normal; word-break:break-word;">${html}</strong></div>`
-          );
-        }
-
-        const preferred = [
-          'identificatie',
-          'naam',
-          'postcode',
-          'huisnummer',
-          'huisletter',
-          'huisnummertoevoeging',
-          'status',
-          'gebruiksdoel',
-          'oppervlakte',
-          'bouwjaar'
-        ];
-
-        for (const keyName of preferred){
-          if (keyName in props) pushRow(keyName, props[keyName]);
-        }
-
-        for (const [keyName, value] of Object.entries(props)){
-          if (keyName === 'id') continue;
-          pushRow(keyName, value);
-        }
-
-        return `
-          <div style="min-width:240px; max-width:340px;">
-            <div style="font-weight:900; margin-bottom:8px;">${escapeHtml(title)}</div>
-            ${rows.join('') || `<div class="summaryNote">${escapeHtml(tr('bagSummaryUnavailable'))}</div>`}
-          </div>
-        `;
       }
 
       function openBagPopup(feature, lngLat){
@@ -763,7 +326,7 @@ import {
           maxWidth:'360px'
         })
           .setLngLat(lngLat)
-          .setHTML(bagPopupHtml(feature))
+          .setHTML(bagPopupHtml(feature, { BAG_COLLECTIONS, tr, getCurrentLang, bagKeyFromLayerId }))
           .addTo(map);
       }
 
@@ -772,139 +335,6 @@ import {
           bagPopup.remove();
           bagPopup = null;
         }
-      }
-
-      function renderBagSummaryMessage(message){
-        bagSummarySectionHtml = registrySummarySectionHtml('BAG', `<div class="summaryNote">${escapeHtml(message)}</div>`);
-        updateDataSummaryCard();
-      }
-
-      function renderBagLayerSummarySkeleton(level, activeKeys, showMap, statusMessage=''){
-        const rows = activeKeys.slice(0, 5).map(() => `
-          <div class="summarySkeletonRow">
-            <span class="summarySkeletonBar" style="width:120px;"></span>
-            <span class="summarySkeletonBar" style="width:52px;"></span>
-          </div>
-        `).join('');
-
-        bagSummarySectionHtml = registrySummarySectionHtml('BAG', `
-          <div class="summarySkeleton" aria-hidden="true">
-            <div class="summarySkeletonRow">
-              <span>${escapeHtml(tr('bagSummaryArea'))}</span>
-              <span class="summarySkeletonBar" style="width:140px;"></span>
-            </div>
-            <div class="summarySkeletonRow">
-              <span>${escapeHtml(tr('bagSummaryLevel'))}</span>
-              <strong>${escapeHtml(bagLevelLabel(level))}</strong>
-            </div>
-            <div class="summarySkeletonBox">
-              <div class="summaryMetricLabel">${escapeHtml(tr('bagSummaryActiveBagLayers'))}</div>
-              <div class="summarySkeletonStack">${rows}</div>
-            </div>
-            <div class="summaryNote">${escapeHtml(statusMessage || tr('bagSummaryLoadingStatic'))}</div>
-          </div>
-        `);
-        updateDataSummaryCard();
-      }
-
-      function renderBagLayerSummary(rows, areaFeature, level, partialKeys, showMap, extraNote=''){
-        if (!areaFeature) return;
-
-        const areaLabel = `${prettyName(areaFeature.properties)} (${areaFeature.properties?._statcode || ''})`;
-        const rowHtml = rows.map(row => {
-          if (row.skeleton){
-            return `
-            <div class="summarySkeletonRow">
-              <span>${escapeHtml(row.label)}</span>
-              <span class="summarySkeletonBar" style="width:52px;"></span>
-            </div>
-          `;
-          }
-          if (row.placeholder){
-            // Backend has no count for this BAG type at the current
-            // (province/municipality) level yet. Render the dash plus a
-            // muted hint so the user knows where the data lives.
-            return `
-            <div class="summaryRow">
-              <span>${escapeHtml(row.label)}</span>
-              <span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
-                <strong>-</strong>
-                <span class="summaryNote" style="margin:0;">${escapeHtml(tr('bagSummaryAvailableAtWijkBuurt'))}</span>
-              </span>
-            </div>
-          `;
-          }
-          const valueText = row.error ? tr('summaryLoadFailedShort') : formatNumber(row.count);
-          return `
-          <div class="summaryRow">
-            <span>${escapeHtml(row.label)}</span>
-            <strong>${escapeHtml(valueText)}</strong>
-          </div>
-        `;
-        }).join('');
-
-        const partialNote = partialKeys.length
-          ? `<div class="summaryNote">${escapeHtml(tr('partialLoadNotePrefix'))}${escapeHtml(partialKeys.join(', '))}.</div>`
-          : '';
-        const extraNoteHtml = extraNote ? `<div class="summaryNote">${escapeHtml(extraNote)}</div>` : '';
-        const modeNote = showMap
-          ? `<div class="summaryNote">${escapeHtml(tr('bagSummaryShownOnMap'))}</div>`
-          : `<div class="summaryNote">${escapeHtml(tr('bagSummaryOnlySummaryAtLevelPrefix'))}${escapeHtml(bagLevelLabel(level).toLowerCase())}${escapeHtml(tr('bagSummaryOnlySummaryAtLevelSuffix'))}</div>`;
-
-        bagSummarySectionHtml = registrySummarySectionHtml('BAG', `
-          <div class="summaryRow">
-            <span>${escapeHtml(tr('bagSummaryArea'))}</span>
-            <strong>${escapeHtml(areaLabel)}</strong>
-          </div>
-          <div class="summaryRow">
-            <span>${escapeHtml(tr('bagSummaryLevel'))}</span>
-            <strong>${escapeHtml(bagLevelLabel(level))}</strong>
-          </div>
-          <div class="summaryList" style="margin-top:10px;">
-            <div class="summaryMetricLabel">${escapeHtml(tr('bagSummaryLoadedBagObjects'))}</div>
-            ${rowHtml || `<div class="summaryNote">${escapeHtml(tr('summaryNoObjectsLoaded'))}</div>`}
-          </div>
-          ${modeNote}
-          ${partialNote}
-          ${extraNoteHtml}
-        `);
-        updateDataSummaryCard();
-      }
-
-      function updateBagLegend(activeKeys, countsByKey = {}, showMap = false){
-        const visibleKeys = activeKeys.filter(key => (countsByKey[key] || 0) > 0);
-        const keysForLabel = visibleKeys.length ? visibleKeys : activeKeys;
-
-        if (!legendBagRowsEl){
-          updateLegendContext();
-          return;
-        }
-
-        if (!showMap || !keysForLabel.length){
-          legendBagRowsEl.innerHTML = '';
-          updateLegendContext();
-          return;
-        }
-
-        const orderedKeys = ALL_BAG_KEYS.filter(k => keysForLabel.includes(k));
-        const rows = orderedKeys.map(key => {
-          const cfg = BAG_COLLECTIONS[key];
-          if (!cfg) return '';
-          const label = escapeHtml(collectionLabel(cfg));
-          if (cfg.geometry === 'point'){
-            const fill = cfg.circle || '#000000';
-            return `<div class="legendRow"><span class="legendBagSwatch legendBagSwatch--point" style="background:${fill};border-color:${fill};"></span><span>${label}</span></div>`;
-          }
-          const fill = cfg.fill || '#ffffff';
-          const line = cfg.line || 'rgba(15,23,42,0.18)';
-          return `<div class="legendRow"><span class="legendBagSwatch" style="background:${fill};border-color:${line};"></span><span>${label}</span></div>`;
-        }).join('');
-        legendBagRowsEl.innerHTML = rows;
-        updateLegendContext();
-      }
-
-      function bagCacheKey(key, level, statcode){
-        return `${key}:${level}:${statcode}`;
       }
 
       function getCurrentBagAreaFeature(){ return selectedAreaFeature(); }
@@ -921,28 +351,6 @@ import {
         return fc?.features || null;
       }
 
-
-      // Single source of truth: wipe the data summary panel and replace
-      // every section with a skeleton placeholder. Called on both area
-      // change and layer toggle so stale data never lingers on screen.
-      function clearBagSummaryPanel(){
-        const activeKeys = activeBagKeys();
-        const level = currentBagAreaLevel();
-        const showMap = level === 'wijk' || level === 'buurt';
-
-        if (activeKeys.length){
-          renderBagLayerSummarySkeleton(level, activeKeys, showMap);
-        } else {
-          bagSummarySectionHtml = '';
-          updateDataSummaryCard();
-        }
-
-        // Chart skeletons for every active chart-eligible layer.
-        renderBagCharts(new Set(activeKeys));
-
-        const sourceLineEl = document.getElementById('bagChartSourceLine');
-        if (sourceLineEl) sourceLineEl.style.display = 'none';
-      }
 
       // ===== end BAG charts =====
 
@@ -1164,7 +572,7 @@ import {
         applyMapVisualization(mode);
         updateVizButtons();
         updateVizLegend();
-        updateLegendContext();
+        legendController.updateLegendContext();
         renderBagCharts();
       }
 
@@ -1172,14 +580,14 @@ import {
         if (!activeMapVisualization){
           updateVizButtons();
           updateVizLegend();
-          updateLegendContext();
+          legendController.updateLegendContext();
           return;
         }
         activeMapVisualization = null;
         restoreMapVisualization();
         updateVizButtons();
         updateVizLegend();
-        updateLegendContext();
+        legendController.updateLegendContext();
         renderBagCharts();
       }
 
@@ -1197,7 +605,7 @@ import {
         }
         updateVizButtons();
         updateVizLegend();
-        updateLegendContext();
+        legendController.updateLegendContext();
       }
 
       // ---------- Button / legend rendering ----------
@@ -1284,9 +692,9 @@ import {
 
         if (!activeKeys.length){
           clearAllBagLayers();
-          bagSummarySectionHtml = '';
-          updateBagLegend([], {}, false);
-          updateDataSummaryCard();
+          bagSummaryStore.html = '';
+          legendController.updateBagLegend([], {}, false);
+          legendController.updateDataSummaryCard();
           clearAllBagCharts();
           postBagRefreshSync();
           return;
@@ -1298,7 +706,7 @@ import {
 
         if (!areaFeature){
           clearAllBagLayers();
-          updateBagLegend([], {}, false);
+          legendController.updateBagLegend([], {}, false);
           renderBagSummaryMessage(tr('bagSummaryNoSelection'));
           clearAllBagCharts();
           postBagRefreshSync();
@@ -1505,438 +913,15 @@ import {
         }
 
         if (reqId !== bagFeatureRequestId) return;
-        updateBagLegend(activeKeys, countsByKey, showMap);
+        legendController.updateBagLegend(activeKeys, countsByKey, showMap);
         renderBagLayerSummary(rows, areaFeature, level, partialKeys, showMap, failedKeys.length ? retryFailedMessage(failedKeys) : '');
         renderBagCharts();
         postBagRefreshSync();
       }
 
 
-      function boundaryLayerVisible(kind){
-        if (kind === 'gemeente') return state.showGemeente !== false;
-        if (kind === 'wijk') return state.showWijk !== false;
-        if (kind === 'buurt') return state.showBuurt !== false;
-        return true;
-      }
-      function setBoundaryLayerVisible(kind, visible){
-        if (kind === 'gemeente') state.showGemeente = !!visible;
-        if (kind === 'wijk') state.showWijk = !!visible;
-        if (kind === 'buurt') state.showBuurt = !!visible;
-        updateBoundaryToggleButton(kind);
-        applyBoundaryLayerVisibility();
-      }
-      function boundaryLayerConfig(kind){
-        if (kind === 'gemeente'){
-          return {
-            buttonEl: toggleGemeenteLayerEl,
-            legendRowEl: legendMunicipalityRowEl,
-            layerIds: ['cbs-gemeente-line', 'cbs-gemeente-hit', 'cbs-gemeente-selected'],
-            label: tr('labelGemeente')
-          };
-        }
-        if (kind === 'wijk'){
-          return {
-            buttonEl: toggleWijkLayerEl,
-            legendRowEl: legendWijkRowEl,
-            layerIds: ['cbs-wijk-line', 'cbs-wijk-hit', 'cbs-wijk-selected'],
-            label: tr('labelWijk')
-          };
-        }
-        if (kind === 'buurt'){
-          return {
-            buttonEl: toggleBuurtLayerEl,
-            legendRowEl: legendBuurtRowEl,
-            layerIds: ['cbs-buurt-line', 'cbs-buurt-hit', 'cbs-buurt-selected'],
-            label: tr('labelBuurt')
-          };
-        }
-        return null;
-      }
-      function updateBoundaryToggleButton(kind){
-        const cfg = boundaryLayerConfig(kind);
-        const btn = cfg?.buttonEl;
-        if (!btn || !cfg) return;
-        const visible = boundaryLayerVisible(kind);
-        btn.classList.toggle('is-hidden', !visible);
-        btn.setAttribute('aria-pressed', visible ? 'true' : 'false');
-        const action = visible ? tr('hideLayerSuffix') : tr('showLayerSuffix');
-        const stateLabel = visible ? tr('visibleSuffix') : tr('hiddenSuffix');
-        const title = `${cfg.label} ${action}`;
-        btn.title = title;
-        btn.setAttribute('aria-label', title);
-        const sr = btn.querySelector('.srOnly');
-        if (sr) sr.textContent = `${cfg.label} ${stateLabel}`;
-      }
-      function updateAllBoundaryToggleButtons(){
-        updateBoundaryToggleButton('gemeente');
-        updateBoundaryToggleButton('wijk');
-        updateBoundaryToggleButton('buurt');
-      }
-      function applyBoundaryLayerVisibility(){
-        for (const kind of ['gemeente', 'wijk', 'buurt']){
-          const cfg = boundaryLayerConfig(kind);
-          const visible = boundaryLayerVisible(kind);
-          for (const id of (cfg?.layerIds || [])){
-            if (map.getLayer(id)){
-              try{ map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none'); }catch(_){}
-            }
-          }
-        }
-        updateLegendContext();
-      }
-
-      function updateLegendContext(){
-        let showNational = false;
-        let showProvince = false;
-        let showMunicipality = false;
-        let showWijk = false;
-        let showBuurt = false;
-
-        if (state.buurtStatcode){
-          showBuurt = boundaryLayerVisible('buurt');
-        } else if (state.wijkStatcode){
-          showWijk = boundaryLayerVisible('wijk');
-          showBuurt = boundaryLayerVisible('buurt');
-        } else if (state.gemeenteStatcode){
-          showMunicipality = boundaryLayerVisible('gemeente');
-          showWijk = boundaryLayerVisible('wijk');
-        } else if (state.provinceStatcode){
-          showProvince = true;
-          showMunicipality = boundaryLayerVisible('gemeente');
-        } else {
-          showNational = true;
-          showProvince = true;
-        }
-
-        if (legendNationalRowEl) legendNationalRowEl.style.display = showNational ? 'flex' : 'none';
-        if (legendProvinceRowEl) legendProvinceRowEl.style.display = showProvince ? 'flex' : 'none';
-        if (legendMunicipalityRowEl) legendMunicipalityRowEl.style.display = showMunicipality ? 'flex' : 'none';
-        if (legendWijkRowEl) legendWijkRowEl.style.display = showWijk ? 'flex' : 'none';
-        if (legendBuurtRowEl) legendBuurtRowEl.style.display = showBuurt ? 'flex' : 'none';
-        if (legendBoundarySectionEl) legendBoundarySectionEl.style.display = (showNational || showProvince || showMunicipality || showWijk || showBuurt) ? 'block' : 'none';
-        const bagVisible = !!legendBagRowsEl && legendBagRowsEl.children.length > 0;
-        if (legendDataSectionEl) legendDataSectionEl.style.display = bagVisible ? 'block' : 'none';
-        const vizLegendVisible = !!activeMapVisualization;
-        if (legendEl) legendEl.style.display = (showNational || showProvince || showMunicipality || showWijk || showBuurt || bagVisible || vizLegendVisible) ? 'block' : 'none';
-      }
-
-      function syncAreaFieldEmptyStates(){
-        const pairs = [
-          [selProvincieEl, !state.provinceStatcode],
-          [selGemeenteEl, !state.gemeenteStatcode],
-          [selWijkEl, !state.wijkStatcode],
-          [selBuurtEl, !state.buurtStatcode]
-        ];
-        for (const [el, isEmpty] of pairs){
-          const field = el?.closest('.areaField');
-          if (field) field.classList.toggle('is-empty', isEmpty);
-        }
-      }
-
-      function updateInfoBox(){
-      const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
-      const segs = [];
-
-      if (state.provinceStatcode){
-      const pf = provinceByStatcode.get(state.provinceStatcode);
-      if (pf) segs.push({ level: 'province', name: prettyName(pf.properties) });
-      }
-
-      if (state.gemeenteStatcode){
-      const gf = gemeenteByStatcode.get(state.gemeenteStatcode);
-      if (gf) segs.push({ level: 'gemeente', name: prettyName(gf.properties) });
-      }
-
-      if (state.wijkStatcode){
-      const wf =
-      visibleWijken.find(f => f.properties?._statcode === state.wijkStatcode) ||
-      allWijken.find(f => f.properties?._statcode === state.wijkStatcode);
-      if (wf) segs.push({ level: 'wijk', name: prettyName(wf.properties) });
-      }
-
-      if (state.buurtStatcode){
-     const bf =
-      visibleBuurten.find(f => f.properties?._statcode === state.buurtStatcode) ||
-      allBuurten.find(f => f.properties?._statcode === state.buurtStatcode);
-      if (bf) segs.push({ level: 'buurt', name: prettyName(bf.properties) });
-      }
-
-      if (!segs.length){
-        selInfoEl.innerHTML = '';
-      } else {
-        const sep = '<svg class="bcSep" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>';
-        const lastIdx = segs.length - 1;
-        const html = segs.map((s, i) => {
-          const text = escapeHtml(s.name);
-          if (i === lastIdx){
-            return `<span class="bcSeg bcSeg--current">${text}</span>`;
-          }
-          return `<button type="button" class="bcSeg" data-bc-level="${s.level}">${text}</button>`;
-        }).join(sep);
-        selInfoEl.innerHTML = html;
-      }
-
-      syncAreaFieldEmptyStates();
-}
-      function resetProvinceSelect(message=tr("loadingProvinces")){ selProvincieEl.innerHTML = `<option value="">${message}</option>`; selProvincieEl.disabled = true; }
-      function resetMunicipalitySelect(message=tr("selectProvinceFirst")){ selGemeenteEl.innerHTML = `<option value="">${message}</option>`; selGemeenteEl.disabled = true; }
-      function resetWijkSelect(message=tr("selectMunicipalityFirst")){ selWijkEl.innerHTML = `<option value="">${message}</option>`; selWijkEl.disabled = true; }
-      function resetBuurtSelect(message=tr("selectWijkFirst")){ selBuurtEl.innerHTML = `<option value="">${message}</option>`; selBuurtEl.disabled = true; }
-      function applyLayerFilters(){
-        if (map.getLayer("cbs-provincie-selected")) map.setFilter("cbs-provincie-selected", state.provinceStatcode ? ["==", ["get", "_statcode"], state.provinceStatcode] : emptyFilter);
-        const municipalityFilter = state.provinceStatcode ? ["==", ["get", "_pvstatcode"], state.provinceStatcode] : emptyFilter;
-        if (map.getLayer("cbs-gemeente-line")) map.setFilter("cbs-gemeente-line", municipalityFilter);
-        if (map.getLayer("cbs-gemeente-hit")) map.setFilter("cbs-gemeente-hit", municipalityFilter);
-        if (map.getLayer("cbs-gemeente-selected")) map.setFilter("cbs-gemeente-selected", state.gemeenteStatcode ? ["==", ["get", "_statcode"], state.gemeenteStatcode] : emptyFilter);
-        const wijkFilter = state.gmCode ? ["==", ["get", "_gmcode"], state.gmCode] : emptyFilter;
-        if (map.getLayer("cbs-wijk-line")) map.setFilter("cbs-wijk-line", wijkFilter);
-        if (map.getLayer("cbs-wijk-hit")) map.setFilter("cbs-wijk-hit", wijkFilter);
-        if (map.getLayer("cbs-wijk-selected")) map.setFilter("cbs-wijk-selected", state.wijkStatcode ? ["==", ["get", "_statcode"], state.wijkStatcode] : emptyFilter);
-        let buurtFilter = emptyFilter;
-        if (state.gmCode && state.wijkStatcode){
-          const body = wijkBody(state.wijkStatcode);
-          buurtFilter = [
-            "all",
-            ["==", ["get", "_gmcode"], state.gmCode],
-            ["==", ["slice", ["get", "_statcode"], 2, 2 + body.length], body]
-          ];
-        }
-        if (map.getLayer("cbs-buurt-line")) map.setFilter("cbs-buurt-line", buurtFilter);
-        if (map.getLayer("cbs-buurt-hit")) map.setFilter("cbs-buurt-hit", buurtFilter);
-        if (map.getLayer("cbs-buurt-selected")) map.setFilter("cbs-buurt-selected", state.buurtStatcode ? ["==", ["get", "_statcode"], state.buurtStatcode] : emptyFilter);
-        applyBoundaryLayerVisibility();
-        refreshBagView().catch(err => console.warn("BAG refresh failed", err));
-      }
-      function fitToFeature(feature){ const b = geojsonBounds(feature); if (b) map.fitBounds(b, { padding: 70, duration: 800 }); }
-      function populateProvinces(){ const opts = allProvinces.map(f => ({ id: f.properties._statcode, name: f.properties._statnaam })).sort((a,b) => a.name.localeCompare(b.name, "nl")); selProvincieEl.innerHTML = `<option value="">${tr("selectProvince")}</option>`; for (const o of opts){ const opt = document.createElement("option"); opt.value = o.id; opt.textContent = `${o.name} (${o.id})`; selProvincieEl.appendChild(opt); } selProvincieEl.disabled = false; }
-      async function populateMunicipalities(){
-        if (!state.provinceStatcode){
-          allGemeenten = [];
-          gemeenteByStatcode.clear();
-          gmToProvinceStatcode.clear();
-          if (map.getSource("cbs-gemeente")) {
-            map.getSource("cbs-gemeente").setData({ type:"FeatureCollection", features: [] });
-          }
-          resetMunicipalitySelect();
-          return;
-        }
-
-        selGemeenteEl.innerHTML = `<option value="">${tr("labelGemeente")}…</option>`;
-        selGemeenteEl.disabled = true;
-
-        try{
-          const fc = await fetchBackendJson(
-            `/api/areas/municipalities?province_statcode=${encodeURIComponent(state.provinceStatcode)}`,
-            30000
-          );
-
-          allGemeenten = fc?.features || [];
-          gemeenteByStatcode.clear();
-          gmToProvinceStatcode.clear();
-
-          for (const f of allGemeenten){
-            gemeenteByStatcode.set(f.properties._statcode, f);
-            if (f.properties?._statcode && f.properties?._pvstatcode){
-              gmToProvinceStatcode.set(f.properties._statcode, f.properties._pvstatcode);
-            }
-          }
-
-          if (map.getSource("cbs-gemeente")) {
-            map.getSource("cbs-gemeente").setData({
-              type:"FeatureCollection",
-              features: allGemeenten
-            });
-          }
-
-          const rows = allGemeenten
-            .map(f => ({ id: f.properties._statcode, name: f.properties._statnaam }))
-            .sort((a,b) => a.name.localeCompare(b.name, "nl"));
-
-          if (!rows.length){
-            resetMunicipalitySelect(tr("noMunicipalitiesFound"));
-            return;
-          }
-
-          selGemeenteEl.innerHTML = `<option value="">${tr("allMunicipalities")}</option>`;
-          for (const row of rows){
-            const opt = document.createElement("option");
-            opt.value = row.id;
-            opt.textContent = `${row.name} (${row.id})`;
-            selGemeenteEl.appendChild(opt);
-          }
-          selGemeenteEl.disabled = false;
-        }catch(err){
-          console.error("Failed to load municipalities from backend", err);
-          allGemeenten = [];
-          gemeenteByStatcode.clear();
-          gmToProvinceStatcode.clear();
-          if (map.getSource("cbs-gemeente")) {
-            map.getSource("cbs-gemeente").setData({ type:"FeatureCollection", features: [] });
-          }
-          resetMunicipalitySelect(tr("loadFailedMunicipalities"));
-        }
-      }
-      async function populateWijken(){
-  if (!state.gmCode){
-    visibleWijken = [];
-    resetWijkSelect();
-    if (map.getSource("cbs-wijk")) map.getSource("cbs-wijk").setData({ type:"FeatureCollection", features: [] });
-    return;
-  }
-  selWijkEl.innerHTML = `<option value="">${tr("loadingWijken")}</option>`;
-  selWijkEl.disabled = true;
-  try{
-    const fc = await fetchBackendJson(`/api/areas/wijken?municipality_gmcode=${encodeURIComponent(state.gmCode)}`, 30000);
-    visibleWijken = fc?.features || [];
-    if (map.getSource("cbs-wijk")) map.getSource("cbs-wijk").setData({ type:"FeatureCollection", features: visibleWijken });
-    const rows = visibleWijken.map(f => ({ id: f.properties._statcode, name: f.properties._statnaam }))
-      .sort((a,b) => a.name.localeCompare(b.name, "nl"));
-    if (!rows.length){
-      resetWijkSelect(tr("noWijkFound"));
-      return;
-    }
-    selWijkEl.innerHTML = `<option value="">${tr("allWijken")}</option>`;
-    for (const row of rows){
-      const opt = document.createElement("option");
-      opt.value = row.id;
-      opt.textContent = `${row.name} (${row.id})`;
-      selWijkEl.appendChild(opt);
-    }
-    selWijkEl.disabled = false;
-  }catch(err){
-    console.error("Failed to load wijken from backend", err);
-    visibleWijken = [];
-    if (map.getSource("cbs-wijk")) map.getSource("cbs-wijk").setData({ type:"FeatureCollection", features: [] });
-    resetWijkSelect(tr("loadFailedShort"));
-  }
-}
-async function populateBuurten(){
-  if (!state.gmCode || !state.wijkStatcode){
-    visibleBuurten = [];
-    resetBuurtSelect();
-    if (map.getSource("cbs-buurt")) map.getSource("cbs-buurt").setData({ type:"FeatureCollection", features: [] });
-    return;
-  }
-  selBuurtEl.innerHTML = `<option value="">${tr("loadingBuurten")}</option>`;
-  selBuurtEl.disabled = true;
-  try{
-    const params = new URLSearchParams({
-      municipality_gmcode: state.gmCode,
-      wijk_statcode: state.wijkStatcode
-    });
-    const fc = await fetchBackendJson(`/api/areas/buurten?${params.toString()}`, 30000);
-    visibleBuurten = fc?.features || [];
-    if (map.getSource("cbs-buurt")) map.getSource("cbs-buurt").setData({ type:"FeatureCollection", features: visibleBuurten });
-    const rows = visibleBuurten.map(f => ({ id: f.properties._statcode, name: f.properties._statnaam }))
-      .sort((a,b) => a.name.localeCompare(b.name, "nl"));
-    if (!rows.length){
-      resetBuurtSelect(tr("noBuurtFound"));
-      return;
-    }
-    selBuurtEl.innerHTML = `<option value="">${tr("allBuurten")}</option>`;
-    for (const row of rows){
-      const opt = document.createElement("option");
-      opt.value = row.id;
-      opt.textContent = `${row.name} (${row.id})`;
-      selBuurtEl.appendChild(opt);
-    }
-    selBuurtEl.disabled = false;
-  }catch(err){
-    console.error("Failed to load buurten from backend", err);
-    visibleBuurten = [];
-    if (map.getSource("cbs-buurt")) map.getSource("cbs-buurt").setData({ type:"FeatureCollection", features: [] });
-    resetBuurtSelect(tr("loadFailedShort"));
-  }
-}
-function clearBelowProvince(){ state.gemeenteStatcode = ""; state.gmCode = ""; state.wijkStatcode = ""; state.buurtStatcode = ""; selGemeenteEl.value = ""; selWijkEl.value = ""; selBuurtEl.value = ""; resetWijkSelect(); resetBuurtSelect(); }
-      function clearBelowMunicipality(){ state.wijkStatcode = ""; state.buurtStatcode = ""; selWijkEl.value = ""; selBuurtEl.value = ""; resetBuurtSelect(); }
-      function clearBelowWijk(){ state.buurtStatcode = ""; selBuurtEl.value = ""; }
-      function selectProvince(statcode, doZoom=true){
-        state.provinceStatcode = statcode || "";
-        selProvincieEl.value = state.provinceStatcode;
-
-        clearBelowProvince();
-
-        allGemeenten = [];
-        gemeenteByStatcode.clear();
-        gmToProvinceStatcode.clear();
-        visibleWijken = [];
-        visibleBuurten = [];
-
-        if (map.getSource("cbs-gemeente")) {
-          map.getSource("cbs-gemeente").setData({ type:"FeatureCollection", features: [] });
-        }
-        if (map.getSource("cbs-wijk")) {
-          map.getSource("cbs-wijk").setData({ type:"FeatureCollection", features: [] });
-        }
-        if (map.getSource("cbs-buurt")) {
-          map.getSource("cbs-buurt").setData({ type:"FeatureCollection", features: [] });
-        }
-
-        applyLayerFilters();
-        updateInfoBox();
-
-        if (state.provinceStatcode){
-          populateMunicipalities()
-            .then(() => {
-              applyLayerFilters();
-              updateInfoBox();
-            })
-            .catch(err => console.warn("populateMunicipalities failed", err));
-        } else {
-          resetMunicipalitySelect();
-        }
-
-        if (doZoom && state.provinceStatcode){
-          const f = provinceByStatcode.get(state.provinceStatcode);
-          if (f) fitToFeature(f);
-        }
-      }
-      function selectMunicipality(statcode, doZoom=true){ if (!statcode){ state.gemeenteStatcode = ""; state.gmCode = ""; clearBelowMunicipality(); selGemeenteEl.value = ""; visibleWijken = []; visibleBuurten = []; if (map.getSource("cbs-wijk")) map.getSource("cbs-wijk").setData({ type:"FeatureCollection", features: [] }); if (map.getSource("cbs-buurt")) map.getSource("cbs-buurt").setData({ type:"FeatureCollection", features: [] }); resetWijkSelect(); resetBuurtSelect(); applyLayerFilters(); updateInfoBox(); return; } const f = gemeenteByStatcode.get(statcode); if (!f) return; const pv = gmToProvinceStatcode.get(statcode) || ""; if (pv && state.provinceStatcode !== pv){ state.provinceStatcode = pv; selProvincieEl.value = pv; populateMunicipalities(); } state.gemeenteStatcode = statcode; state.gmCode = f.properties._gmcode; clearBelowMunicipality(); selGemeenteEl.value = statcode; visibleBuurten = []; if (map.getSource("cbs-buurt")) map.getSource("cbs-buurt").setData({ type:"FeatureCollection", features: [] }); applyLayerFilters(); updateInfoBox(); populateWijken().then(() => { applyLayerFilters(); updateInfoBox(); }).catch(err => console.warn("populateWijken failed", err)); if (doZoom) fitToFeature(f); }
-      function selectWijk(statcode, doZoom=true){ if (!statcode){ state.wijkStatcode = ""; clearBelowWijk(); selWijkEl.value = ""; visibleBuurten = []; if (map.getSource("cbs-buurt")) map.getSource("cbs-buurt").setData({ type:"FeatureCollection", features: [] }); resetBuurtSelect(); applyLayerFilters(); updateInfoBox(); return; } state.wijkStatcode = statcode; clearBelowWijk(); selWijkEl.value = statcode; applyLayerFilters(); updateInfoBox(); populateBuurten().then(() => { applyLayerFilters(); updateInfoBox(); }).catch(err => console.warn("populateBuurten failed", err)); if (doZoom){ const f = visibleWijken.find(x => x.properties._statcode === statcode) || allWijken.find(x => x.properties._statcode === statcode); if (f) fitToFeature(f); } }
-      function selectBuurt(statcode, doZoom=true){ state.buurtStatcode = statcode || ""; selBuurtEl.value = statcode || ""; applyLayerFilters(); updateInfoBox(); if (doZoom && statcode){ const f = visibleBuurten.find(x => x.properties._statcode === statcode) || allBuurten.find(x => x.properties._statcode === statcode); if (f) fitToFeature(f); } }
-      function selectProvinceByFeature(feature, doZoom=true){ const statcode = feature?.properties?._statcode || prettyStatcode(feature?.properties); if (statcode) selectProvince(statcode, doZoom); }
-      function selectMunicipalityByFeature(feature, doZoom=true){ const statcode = feature?.properties?._statcode || prettyStatcode(feature?.properties); if (statcode) selectMunicipality(statcode, doZoom); }
-      function selectWijkByFeature(feature, doZoom=true){ const statcode = feature?.properties?._statcode || prettyStatcode(feature?.properties); const gmcode = feature?.properties?._gmcode || municipalityCodeFromStatcode(statcode); const gmStat = gmcode ? `GM${gmcode}` : ""; if (gmStat && gmStat !== state.gemeenteStatcode) selectMunicipality(gmStat, false); if (statcode) selectWijk(statcode, doZoom); }
-      function selectBuurtByFeature(feature, doZoom=true){ const statcode = feature?.properties?._statcode || prettyStatcode(feature?.properties); const gmcode = feature?.properties?._gmcode || municipalityCodeFromStatcode(statcode); const gmStat = gmcode ? `GM${gmcode}` : ""; const wijkStat = statcode ? `WK${String(statcode).replace(/^BU/i, "").slice(0, 6)}` : ""; if (gmStat && gmStat !== state.gemeenteStatcode) selectMunicipality(gmStat, false); if (wijkStat && wijkStat !== state.wijkStatcode) selectWijk(wijkStat, false); if (statcode) selectBuurt(statcode, doZoom); }
-      async function loadAdminData(){
-        resetProvinceSelect();
-        resetMunicipalitySelect();
-        resetWijkSelect(tr("loadingWijken"));
-        resetBuurtSelect(tr("loadingBuurten"));
-
-        const p = await fetchBackendJson("/api/areas/provinces", 30000);
-
-        allProvinces = p.features || [];
-        allGemeenten = [];
-        allWijken = [];
-        allBuurten = [];
-        visibleWijken = [];
-        visibleBuurten = [];
-
-        provinceByStatcode.clear();
-        gemeenteByStatcode.clear();
-        gmToProvinceStatcode.clear();
-
-        for (const f of allProvinces){
-          provinceByStatcode.set(f.properties._statcode, f);
-        }
-
-        map.getSource("cbs-provincie").setData(p);
-        map.getSource("cbs-gemeente").setData({ type:"FeatureCollection", features: [] });
-        map.getSource("cbs-wijk").setData({ type:"FeatureCollection", features: [] });
-        map.getSource("cbs-buurt").setData({ type:"FeatureCollection", features: [] });
-
-        populateProvinces();
-        resetMunicipalitySelect();
-        resetWijkSelect();
-        resetBuurtSelect();
-        applyLayerFilters();
-        updateInfoBox();
-      }
-      function featureUnderPointer(point, layerId){ if (!map.getLayer(layerId)) return null; const feats = map.queryRenderedFeatures(point, { layers:[layerId] }); return feats && feats.length ? feats[0] : null; }
       map.on("load", async ()=>{ map.fitBounds(NL_BOUNDS, { padding: NL_FIT_PADDING, duration: 0, animate: false }); ensureWhiteBackground(); const beforeId = firstNonBackgroundLayerId(); try{ await ensureBrtLayer(beforeId); await addOutsideNlMask(beforeId); await addWorldCountryOutlines(beforeId); }catch(err){ console.warn(err); } setBasemap("brt"); hideBrkMunicipalityLayers(); addAdminSourcesAndLayers(); ensureBagFeatureLayers(); updateAllBoundaryToggleButtons(); applyBoundaryLayerVisibility(); enforceBoundaryStackOrder(); try{ await loadAdminData(); enforceBoundaryStackOrder(); }catch(err){ console.error(err); selProvincieEl.innerHTML = `<option value="">${tr("loadFailedProvinces")}</option>`; selGemeenteEl.innerHTML = `<option value="">${tr("loadFailedMunicipalities")}</option>`; resetWijkSelect(tr("loadFailedShort")); resetBuurtSelect(tr("loadFailedShort")); }
-        resetToNationalView = () => { state.provinceStatcode = ""; state.gemeenteStatcode = ""; state.gmCode = ""; state.wijkStatcode = ""; state.buurtStatcode = ""; selProvincieEl.value = ""; selGemeenteEl.value = ""; selWijkEl.value = ""; selBuurtEl.value = ""; resetMunicipalitySelect(); resetWijkSelect(); resetBuurtSelect(); applyLayerFilters(); updateInfoBox(); closeBagPopup(); };
+        resetController.resetToNationalView = () => { state.provinceStatcode = ""; state.gemeenteStatcode = ""; state.gmCode = ""; state.wijkStatcode = ""; state.buurtStatcode = ""; selProvincieEl.value = ""; selGemeenteEl.value = ""; selWijkEl.value = ""; selBuurtEl.value = ""; resetMunicipalitySelect(); resetWijkSelect(); resetBuurtSelect(); applyLayerFilters(); legendController.updateInfoBox(); closeBagPopup(); };
         selProvincieEl.addEventListener("change", ()=> selectProvince(selProvincieEl.value, true));
         selGemeenteEl.addEventListener("change", ()=> selectMunicipality(selGemeenteEl.value, true));
         selWijkEl.addEventListener("change", ()=> { if (!state.gemeenteStatcode) return; selectWijk(selWijkEl.value, true); });
@@ -1996,4 +981,3 @@ function clearBelowProvince(){ state.gemeenteStatcode = ""; state.gmCode = ""; s
       });
       map.on("error", e => console.error("MapLibre error:", e?.error || e));
     })();
-  
