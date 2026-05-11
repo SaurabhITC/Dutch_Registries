@@ -17,7 +17,7 @@ class Settings(BaseSettings):
 
     data_dir: Path = REPO_ROOT / "data"
     frontend_dir: Path = REPO_ROOT / "Frontend"
-    cors_origins: List[str] = ["*"]
+    cors_origins: List[str] = []
     pdok_cbs_base: str = "https://api.pdok.nl/cbs/gebiedsindelingen/ogc/v1"
     pdok_bag_base: str = "https://api.pdok.nl/kadaster/bag/ogc/v2"
     yearcode: int = 2025

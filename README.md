@@ -187,7 +187,7 @@ prefix, case-insensitive, comma-split for list types).
 | `GEONOVUM_DATA_DIR` | `<repo>/data` | Where the runtime cache lives |
 | `GEONOVUM_FRONTEND_DIR` | `<repo>/Frontend` | Where static frontend assets live |
 | `GEONOVUM_LOG_LEVEL` | `INFO` | Logging verbosity |
-| `GEONOVUM_CORS_ORIGINS` | `*` | Comma-separated allowed origins for CORS (tighten in prod) |
+| `GEONOVUM_CORS_ORIGINS` | (empty) | Comma-separated allowed origins for CORS. Default is closed — same-origin requests work without setting this. Set for cross-origin deployments, e.g. `https://dashboard.geonovum.nl,https://internal.geonovum.nl`. |
 | `GEONOVUM_YEARCODE` | `2025` | CBS year code for boundary data |
 | `GEONOVUM_SUMMARY_MAX_AGE_SECONDS` | `86400` | TTL for BAG summary freshness check |
 | `GEONOVUM_PDOK_CBS_BASE` | `https://api.pdok.nl/cbs/gebiedsindelingen/ogc/v1` | PDOK CBS base URL |
