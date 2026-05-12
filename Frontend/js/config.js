@@ -126,3 +126,36 @@ export const GEBRUIKSDOEL_CATEGORIES = [
   'celfunctie',
   'overige gebruiksfunctie',
 ];
+
+// BAG pandstatus values from the kadaster registry, grouped into three
+// buckets for filtering. The exact strings here MUST match what PDOK
+// returns in the 'status' property of pand features — they are used in
+// the MapLibre filter expression directly. The 'unknown' bucket is for
+// any future status values we haven't catalogued; we treat unknown as
+// in_use so unfamiliar data isn't silently hidden.
+export const PAND_STATUS_BUCKETS = {
+  in_use: [
+    'Pand in gebruik',
+    'Pand in gebruik (niet ingemeten)',
+    'Verbouwing pand',
+    'Pand buiten gebruik',
+  ],
+  in_progress: [
+    'Bouwvergunning verleend',
+    'Bouw gestart',
+    'Pand in aanbouw',
+    'Sloopvergunning verleend',
+  ],
+  gone: [
+    'Pand gesloopt',
+    'Niet gerealiseerd pand',
+    'Pand ten onrechte opgevoerd',
+  ],
+};
+
+// Flat list of all known statuses, for quickly identifying "unknown".
+export const PAND_KNOWN_STATUSES = [
+  ...PAND_STATUS_BUCKETS.in_use,
+  ...PAND_STATUS_BUCKETS.in_progress,
+  ...PAND_STATUS_BUCKETS.gone,
+];

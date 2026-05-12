@@ -61,6 +61,32 @@ export function createBagLayers({ map, bagToggleEls, tr }){
     }
   }
 
+  // Apply a MapLibre filter to the pand layers so only features whose
+  // 'status' is in `allowedStatuses` are drawn. Pass null to remove the
+  // filter entirely (show everything). Other BAG layers are untouched —
+  // status semantics differ across BAG object types (VBO statuses use
+  // 'Verblijfsobject in gebruik' etc.) so this filter is pand-specific.
+  function setPandStatusFilter(allowedStatuses){
+    const layerIds = bagLayerIdsForKey('pand');
+    for (const id of layerIds){
+      if (!map.getLayer(id)) continue;
+      if (allowedStatuses === null){
+        map.setFilter(id, null);
+        continue;
+      }
+      // MapLibre 'in' expression: ['in', value, ['literal', array]]
+      // Returns true when the feature's status is in the allowed list.
+      // Features with missing status fall through to ['has', 'status']
+      // being false → we explicitly include them when in_use is allowed
+      // (treat unknown as in_use, matching config.js comment).
+      map.setFilter(id, [
+        'any',
+        ['in', ['get', 'status'], ['literal', allowedStatuses]],
+        ['!', ['has', 'status']],
+      ]);
+    }
+  }
+
   function clearAllBagLayers(){
     for (const key of ALL_BAG_KEYS){
       setBagKeyData(key, { type:'FeatureCollection', features: [] });
@@ -159,6 +185,7 @@ export function createBagLayers({ map, bagToggleEls, tr }){
     bagKeyFromLayerId,
     setBagKeyData,
     setBagKeyVisibility,
+    setPandStatusFilter,
     clearAllBagLayers,
     ensureBagFeatureLayers,
     bagCacheKey,

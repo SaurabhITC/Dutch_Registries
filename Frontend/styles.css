@@ -739,6 +739,12 @@
       box-shadow: var(--shadowSoft);
     }
 
+    .maplibregl-ctrl-top-left{
+      display: flex !important;
+      flex-direction: row !important;
+      align-items: flex-start;
+      gap: 6px;
+    }
     .maplibregl-ctrl-top-right{
       display:flex;
       flex-direction:row-reverse;
@@ -832,12 +838,22 @@
       cursor:pointer;
     }
 
+    .mapBottomLeftStack{
+      position: absolute;
+      left: 16px;
+      bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 2;
+      max-width: 320px;
+      pointer-events: none;
+    }
+    .mapBottomLeftStack > *{
+      pointer-events: auto;
+    }
     .legend{
-      position:absolute;
-      left:16px;
-      bottom:16px;
       width:auto;
-      max-width:320px;
       border-radius: 14px;
       border: 1px solid var(--stroke);
       background: rgba(255,255,255,0.86);
@@ -845,7 +861,24 @@
       box-shadow: var(--shadowSoft);
       padding: 8px 9px;
       overflow: visible;
-      z-index: 2;
+    }
+    .pandStatusCard{
+      width: auto;
+      border-radius: 14px;
+      border: 1px solid var(--stroke);
+      background: rgba(255,255,255,0.86);
+      backdrop-filter: blur(12px);
+      box-shadow: var(--shadowSoft);
+      padding: 8px 9px;
+      overflow: visible;
+    }
+    .pandStatusCardTitle{
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.02em;
+      color: rgba(15,23,42,0.55);
+      text-transform: uppercase;
+      margin: 0 0 3px 0;
     }
     .legendTitle{
       display:none;
@@ -871,6 +904,77 @@
       font-size: 11px;
       color: var(--muted);
       margin: 5px 0;
+    }
+    .pandStatusSummary{
+      font-size: 11px;
+      color: var(--muted);
+      margin: 2px 0 8px 0;
+      font-style: italic;
+    }
+    .pandStatusBucket{
+      margin: 4px 0;
+    }
+    .pandStatusBucketHeader{
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text);
+      cursor: default;
+    }
+    .pandStatusBucketHeader > input[type="checkbox"]{
+      margin: 0;
+      flex: 0 0 auto;
+      cursor: pointer;
+    }
+    .pandStatusBucketLabel{
+      flex: 1 1 auto;
+      font-weight: 600;
+    }
+    .pandStatusCount{
+      font-size: 10px;
+      color: var(--muted);
+      flex: 0 0 auto;
+    }
+    .pandStatusCaret{
+      flex: 0 0 auto;
+      width: 14px;
+      height: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      cursor: pointer;
+      user-select: none;
+      transition: transform 0.15s ease;
+    }
+    .pandStatusCaret.is-open{
+      transform: rotate(90deg);
+    }
+    .pandStatusChildren{
+      display: none;
+      margin: 2px 0 4px 18px;
+      border-left: 1px dashed var(--stroke);
+      padding-left: 8px;
+    }
+    .pandStatusChildren.is-open{
+      display: block;
+    }
+    .pandStatusChild{
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      color: var(--muted);
+      margin: 2px 0;
+    }
+    .pandStatusChild > input[type="checkbox"]{
+      margin: 0;
+      flex: 0 0 auto;
+      cursor: pointer;
+    }
+    .pandStatusChildLabel{
+      flex: 1 1 auto;
     }
     .legendBagSwatch{
       width: 14px;
@@ -1321,7 +1425,7 @@
         max-width:none;
         max-height:28vh;
       }
-      .legend{
+      .mapBottomLeftStack{
         right:10px;
         bottom:44px;
         max-width:178px;
@@ -1335,6 +1439,6 @@
     }
     @media (max-width: 520px){
       header{height:72px;}
-      .legend{max-width: 180px;}
+      .mapBottomLeftStack{max-width: 180px;}
     }
   
