@@ -19,6 +19,22 @@ from .strings import (
     _t,
 )
 
+# Per-category gebruiksdoel colors — must match VIZ_PALETTE_GEBRUIKSDOEL
+# in Frontend/app.js so PDF and on-screen visualization stay aligned.
+GEBRUIKSDOEL_COLORS: Dict[str, str] = {
+    "woonfunctie":             "#fde047",
+    "winkelfunctie":           "#ef4444",
+    "kantoorfunctie":          "#7dd3fc",
+    "industriefunctie":        "#a855f7",
+    "onderwijsfunctie":        "#1d4ed8",
+    "gezondheidszorgfunctie":  "#ec4899",
+    "sportfunctie":            "#86efac",
+    "logiesfunctie":           "#fb923c",
+    "bijeenkomstfunctie":      "#06b6d4",
+    "celfunctie":              "#78350f",
+    "overige gebruiksfunctie": "#9ca3af",
+}
+
 
 def aggregate_bouwjaar(features: List[Dict[str, Any]]) -> List[int]:
     counts = [0] * len(BOUWJAAR_BUCKETS)
@@ -65,7 +81,11 @@ def aggregate_gebruiksdoel(features: List[Dict[str, Any]]) -> List[Tuple[str, in
             if t in counts:
                 counts[t] += 1
     entries = [(c, counts[c]) for c in GEBRUIKSDOEL_CATEGORIES if counts[c] > 0]
-    entries.sort(key=lambda e: e[1], reverse=True)
+    # Sort by count descending, but pin 'overige gebruiksfunctie' to the end
+    # regardless of count, matching frontend aggregateGebruiksdoel behavior.
+    entries.sort(
+        key=lambda e: (e[0] == "overige gebruiksfunctie", -e[1])
+    )
     return entries
 
 
@@ -79,12 +99,14 @@ def _render_bar_chart(
     cmap_name: str,
     horizontal: bool = False,
     rotate_x: int = 0,
+    colors: Optional[List[str]] = None,
 ) -> bytes:
     fig, ax = plt.subplots(figsize=(8, 4.4), dpi=300)
     fig.patch.set_facecolor("white")
-    cmap = plt.get_cmap(cmap_name)
     n = max(len(values), 1)
-    colors = [cmap(0.20 + 0.70 * (i / max(n - 1, 1))) for i in range(n)]
+    if colors is None:
+        cmap = plt.get_cmap(cmap_name)
+        colors = [cmap(0.20 + 0.70 * (i / max(n - 1, 1))) for i in range(n)]
     if horizontal:
         ax.barh(labels, values, color=colors, edgecolor="white", linewidth=0.4)
         ax.invert_yaxis()
@@ -126,7 +148,7 @@ def render_bouwjaar_chart(features: List[Dict[str, Any]], lang: str) -> Optional
         title=_t(lang, "chart_bouwjaar_title"),
         xlabel=_t(lang, "axis_year"),
         ylabel=_t(lang, "axis_count"),
-        cmap_name="YlOrRd",
+        cmap_name="Spectral_r",
         rotate_x=45,
     )
 
@@ -137,6 +159,7 @@ def render_gebruiksdoel_chart(features: List[Dict[str, Any]], lang: str) -> Opti
         return None
     labels = [GEBRUIKSDOEL_LABELS.get(k, {}).get(lang if lang in ("nl", "en") else "nl", k) for (k, _) in entries]
     values = [v for (_, v) in entries]
+    colors = [GEBRUIKSDOEL_COLORS.get(k, "#9ca3af") for (k, _) in entries]
     return _render_bar_chart(
         labels=labels,
         values=values,
@@ -145,6 +168,7 @@ def render_gebruiksdoel_chart(features: List[Dict[str, Any]], lang: str) -> Opti
         ylabel="",
         cmap_name="Set2",
         horizontal=True,
+        colors=colors,
     )
 
 

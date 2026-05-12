@@ -82,6 +82,28 @@ export const BOUWJAAR_BUCKETS = [
   { label: '2020+',     min: 2020,      max: Infinity },
 ];
 
+// 14-stop spectral ramp for the bouwjaar CHART (one color per decade bin).
+// Aligned to BOUWJAAR_BUCKETS order: index 0 = <1900 (oldest, dark red)
+// through index 13 = 2020+ (newest, deep purple). The MAP uses a coarser
+// 6-band palette in app.js — these two are intentionally separate until
+// bin boundaries are unified.
+export const BOUWJAAR_CHART_COLORS = [
+  '#67001f', // <1900       — oldest, dark red
+  '#a50026', // 1900-1909
+  '#d73027', // 1910-1919
+  '#f46d43', // 1920-1929
+  '#fdae61', // 1930-1939
+  '#fee090', // 1940-1949
+  '#ffffbf', // 1950-1959   — neutral / mid-century
+  '#e0f3f8', // 1960-1969
+  '#abd9e9', // 1970-1979
+  '#74add1', // 1980-1989
+  '#4575b4', // 1990-1999
+  '#313695', // 2000-2009
+  '#5e4fa2', // 2010-2019
+  '#3f007d', // 2020+       — newest, deep purple
+];
+
 export const OPPERVLAKTE_BUCKETS = [
   { label: '<50 m²',     min: -Infinity, lt: 50 },
   { label: '50-75 m²',   min: 50,        lt: 75 },

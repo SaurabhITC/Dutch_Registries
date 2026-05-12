@@ -151,7 +151,23 @@ import {
       overviewBtn.addEventListener("click", () => openOverview(true));
       overviewClose.addEventListener("click", () => openOverview(false));
       overviewModal.addEventListener("click", (e) => { if (e.target === overviewModal) openOverview(false); });
-      openOverview(true);
+      // Auto-open the overview modal on first visit only.
+      // Override: ?showOverview=1 forces it open without affecting the flag.
+      (function autoOpenOverviewOnFirstVisit(){
+        try {
+          const params = new URLSearchParams(window.location.search);
+          if (params.get('showOverview') === '1'){
+            openOverview(true);
+            return;
+          }
+        } catch { /* ignore */ }
+        let seen = null;
+        try { seen = localStorage.getItem('geonovum_overview_seen'); } catch { /* ignore */ }
+        if (seen !== 'true'){
+          try { localStorage.setItem('geonovum_overview_seen', 'true'); } catch { /* ignore */ }
+          openOverview(true);
+        }
+      })();
       document.addEventListener("keydown", (e) => { if (e.key === "Escape") openOverview(false); });
 
       if (typeof maplibregl === "undefined"){
@@ -364,33 +380,37 @@ import {
 
       // ColorBrewer-derived palettes. Hex codes match the spec exactly.
       const VIZ_PALETTE_BOUWJAAR = {
-        preBefore1900:  '#ffffb2',
-        band1900_1944:  '#fed976',
-        band1945_1969:  '#feb24c',
-        band1970_1989:  '#fd8d3c',
-        band1990_2009:  '#f03b20',
-        band2010Plus:   '#bd0026',
-        unknown:        '#bdbdbd',
+        preBefore1900:  '#8c2d04',  // dark red-brown — pre-1900, historical
+        band1900_1944:  '#d94801',  // burnt orange
+        band1945_1969:  '#f7d96b',  // warm yellow
+        band1970_1989:  '#7fbc41',  // green
+        band1990_2009:  '#4393c3',  // medium blue
+        band2010Plus:   '#3f007d',  // deep purple — newest, modern
+        unknown:        '#bdbdbd',  // unchanged grey
       };
       const VIZ_PALETTE_GEBRUIKSDOEL = {
-        woonfunctie:            '#66c2a5',
-        winkelfunctie:          '#fc8d62',
-        kantoorfunctie:         '#8da0cb',
-        industriefunctie:       '#e78ac3',
-        onderwijsfunctie:       '#a6d854',
-        gezondheidszorgfunctie: '#ffd92f',
-        overige:                '#b3b3b3',
-        unknown:                '#bdbdbd',
+        woonfunctie:            '#fde047',  // residential — yellow
+        winkelfunctie:          '#ef4444',  // retail — red
+        kantoorfunctie:         '#7dd3fc',  // office — light blue
+        industriefunctie:       '#a855f7',  // industrial — purple
+        onderwijsfunctie:       '#1d4ed8',  // education — royal blue
+        gezondheidszorgfunctie: '#ec4899',  // healthcare — pink/magenta
+        sportfunctie:           '#86efac',  // sports — light green
+        logiesfunctie:          '#fb923c',  // hospitality / lodging — orange
+        bijeenkomstfunctie:     '#06b6d4',  // assembly / meeting — turquoise
+        celfunctie:             '#78350f',  // detention — dark brown
+        overige:                '#9ca3af',  // other / mixed — neutral grey
+        unknown:                '#bdbdbd',  // unknown — light grey (unchanged)
       };
       const VIZ_PALETTE_OPPERVLAKTE = {
-        band_lt50:    '#eff3ff',
-        band_50_75:   '#c6dbef',
-        band_75_100:  '#9ecae1',
-        band_100_150: '#6baed6',
-        band_150_250: '#3182bd',
-        band_250plus: '#08519c',
-        unknown:      '#bdbdbd',
-        noData:       '#bdbdbd',
+        band_lt50:    '#deebf7',  // was #eff3ff — slightly darker so visible
+        band_50_75:   '#9ecae1',  // was #c6dbef
+        band_75_100:  '#6baed6',  // was #9ecae1
+        band_100_150: '#4292c6',  // was #6baed6
+        band_150_250: '#2171b5',  // was #3182bd
+        band_250plus: '#08306b',  // was #08519c — darker so 250+ pops
+        unknown:      '#bdbdbd',  // unchanged
+        noData:       '#bdbdbd',  // unchanged
       };
 
       // `savedLayerPaint` (original paint values keyed by
@@ -456,6 +476,10 @@ import {
               'industriefunctie',       VIZ_PALETTE_GEBRUIKSDOEL.industriefunctie,
               'onderwijsfunctie',       VIZ_PALETTE_GEBRUIKSDOEL.onderwijsfunctie,
               'gezondheidszorgfunctie', VIZ_PALETTE_GEBRUIKSDOEL.gezondheidszorgfunctie,
+              'sportfunctie',           VIZ_PALETTE_GEBRUIKSDOEL.sportfunctie,
+              'logiesfunctie',          VIZ_PALETTE_GEBRUIKSDOEL.logiesfunctie,
+              'bijeenkomstfunctie',     VIZ_PALETTE_GEBRUIKSDOEL.bijeenkomstfunctie,
+              'celfunctie',             VIZ_PALETTE_GEBRUIKSDOEL.celfunctie,
               VIZ_PALETTE_GEBRUIKSDOEL.overige,
             ],
             VIZ_PALETTE_GEBRUIKSDOEL.unknown,
@@ -661,6 +685,10 @@ import {
             vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.industriefunctie,       tr('gebruiksdoelIndustriefunctie')) +
             vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.onderwijsfunctie,       tr('gebruiksdoelOnderwijsfunctie')) +
             vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.gezondheidszorgfunctie, tr('gebruiksdoelGezondheidszorgfunctie')) +
+            vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.sportfunctie,           tr('gebruiksdoelSportfunctie')) +
+            vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.logiesfunctie,          tr('gebruiksdoelLogiesfunctie')) +
+            vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.bijeenkomstfunctie,     tr('gebruiksdoelBijeenkomstfunctie')) +
+            vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.celfunctie,             tr('gebruiksdoelCelfunctie')) +
             vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.overige,                tr('vizLegendOverige')) +
             vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.unknown,                tr('vizLegendUnknown'));
         } else if (activeMapVisualization === 'oppervlakte'){

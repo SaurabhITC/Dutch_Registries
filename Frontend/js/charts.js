@@ -5,6 +5,7 @@
 import { tr } from './i18n.js';
 import {
   BOUWJAAR_BUCKETS,
+  BOUWJAAR_CHART_COLORS,
   GEBRUIKSDOEL_CATEGORIES,
   OPPERVLAKTE_BUCKETS,
 } from './config.js';
@@ -100,9 +101,14 @@ function aggregateGebruiksdoel(features){
     }
   }
   const entries = GEBRUIKSDOEL_CATEGORIES
-    .map(c => ({ key: c, count: counts[c] }))
-    .filter(e => e.count > 0)
-    .sort((a, b) => b.count - a.count);
+  .map(c => ({ key: c, count: counts[c] }))
+  .filter(e => e.count > 0)
+  .sort((a, b) => {
+    // Always sort "overige gebruiksfunctie" to the end
+    if (a.key === 'overige gebruiksfunctie') return 1;
+    if (b.key === 'overige gebruiksfunctie') return -1;
+    return b.count - a.count;
+  });
   return entries;
 }
 
@@ -194,17 +200,12 @@ function commonChartOptions(){
 
 function bouwjaarBarColors(labels){
   if (_hooks.getActiveMapVisualization() !== 'bouwjaar') return null;
-  const palette = _hooks.getPalettes().bouwjaar;
+  const indexByLabel = new Map(BOUWJAAR_BUCKETS.map((b, i) => [b.label, i]));
+  const last = BOUWJAAR_CHART_COLORS.length - 1;
   return labels.map(label => {
-    if (label === '<1900') return palette.preBefore1900;
-    const m = String(label).match(/^(\d{4})/);
-    if (!m) return palette.preBefore1900;
-    const start = Number(m[1]);
-    if (start < 1945) return palette.band1900_1944;
-    if (start < 1970) return palette.band1945_1969;
-    if (start < 1990) return palette.band1970_1989;
-    if (start < 2010) return palette.band1990_2009;
-    return palette.band2010Plus;
+    const i = indexByLabel.get(label);
+    if (i == null) return BOUWJAAR_CHART_COLORS[last];
+    return BOUWJAAR_CHART_COLORS[i] ?? BOUWJAAR_CHART_COLORS[last];
   });
 }
 
