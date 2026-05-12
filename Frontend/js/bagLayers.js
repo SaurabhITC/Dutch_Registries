@@ -87,6 +87,38 @@ export function createBagLayers({ map, bagToggleEls, tr }){
     }
   }
 
+  function setStandplaatsStatusFilter(allowedStatuses){
+    const layerIds = bagLayerIdsForKey('standplaats');
+    for (const id of layerIds){
+      if (!map.getLayer(id)) continue;
+      if (allowedStatuses === null){
+        map.setFilter(id, null);
+        continue;
+      }
+      map.setFilter(id, [
+        'any',
+        ['in', ['get', 'status'], ['literal', allowedStatuses]],
+        ['!', ['has', 'status']],
+      ]);
+    }
+  }
+
+  function setLigplaatsStatusFilter(allowedStatuses){
+    const layerIds = bagLayerIdsForKey('ligplaats');
+    for (const id of layerIds){
+      if (!map.getLayer(id)) continue;
+      if (allowedStatuses === null){
+        map.setFilter(id, null);
+        continue;
+      }
+      map.setFilter(id, [
+        'any',
+        ['in', ['get', 'status'], ['literal', allowedStatuses]],
+        ['!', ['has', 'status']],
+      ]);
+    }
+  }
+
   function clearAllBagLayers(){
     for (const key of ALL_BAG_KEYS){
       setBagKeyData(key, { type:'FeatureCollection', features: [] });
@@ -186,6 +218,8 @@ export function createBagLayers({ map, bagToggleEls, tr }){
     setBagKeyData,
     setBagKeyVisibility,
     setPandStatusFilter,
+    setStandplaatsStatusFilter,
+    setLigplaatsStatusFilter,
     clearAllBagLayers,
     ensureBagFeatureLayers,
     bagCacheKey,

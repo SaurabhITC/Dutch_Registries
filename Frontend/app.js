@@ -2,7 +2,7 @@
 // Administrative hierarchy and BAG data are loaded from the backend endpoints.
 // External PDOK services are used directly only for basemap rendering.
 
-import { initI18n, tr, getCurrentLang, PAND_STATUS_TR_KEYS } from './js/i18n.js';
+import { initI18n, tr, getCurrentLang, PAND_STATUS_TR_KEYS, PLAATS_STATUS_TR_KEYS } from './js/i18n.js';
 import {
   DEFAULT_VIEW,
   NL_BOUNDS,
@@ -23,6 +23,8 @@ import {
   GEBRUIKSDOEL_CATEGORIES,
   PAND_STATUS_BUCKETS,
   PAND_KNOWN_STATUSES,
+  PLAATS_STATUS_BUCKETS,
+  PLAATS_KNOWN_STATUSES,
 } from './js/config.js';
 import {
   fetchWithTimeout,
@@ -201,6 +203,19 @@ import {
       }
       let pandStatusState = buildDefaultPandStatusState();
 
+      // Per-status filter state for standplaats and ligplaats. Both share
+      // the same plaats vocabulary (PLAATS_STATUS_BUCKETS) but each object
+      // type owns an independent state object so the user can toggle them
+      // separately. Default: 'live' bucket on, 'gone' bucket off.
+      function buildDefaultPlaatsStatusState(){
+        const state = {};
+        for (const s of PLAATS_STATUS_BUCKETS.live) state[s] = true;
+        for (const s of PLAATS_STATUS_BUCKETS.gone) state[s] = false;
+        return state;
+      }
+      let standplaatsStatusState = buildDefaultPlaatsStatusState();
+      let ligplaatsStatusState = buildDefaultPlaatsStatusState();
+
       // Returns the flat list of statuses currently enabled. Returns null
       // when ALL statuses are enabled (signals "no filter needed").
       function allowedPandStatusesFromState(){
@@ -208,9 +223,25 @@ import {
         if (allOn) return null;
         return PAND_KNOWN_STATUSES.filter(s => pandStatusState[s]);
       }
+      function allowedStandplaatsStatusesFromState(){
+        const allOn = PLAATS_KNOWN_STATUSES.every(s => standplaatsStatusState[s]);
+        if (allOn) return null;
+        return PLAATS_KNOWN_STATUSES.filter(s => standplaatsStatusState[s]);
+      }
+      function allowedLigplaatsStatusesFromState(){
+        const allOn = PLAATS_KNOWN_STATUSES.every(s => ligplaatsStatusState[s]);
+        if (allOn) return null;
+        return PLAATS_KNOWN_STATUSES.filter(s => ligplaatsStatusState[s]);
+      }
 
       function applyPandStatusFilter(){
         setPandStatusFilter(allowedPandStatusesFromState());
+      }
+      function applyStandplaatsStatusFilter(){
+        setStandplaatsStatusFilter(allowedStandplaatsStatusesFromState());
+      }
+      function applyLigplaatsStatusFilter(){
+        setLigplaatsStatusFilter(allowedLigplaatsStatusesFromState());
       }
 
       // Returns the subset of pand features matching the current
@@ -229,6 +260,28 @@ import {
           return allowedSet.has(status);
         });
       }
+      function applyStandplaatsStatusFilterToFeatures(features){
+        if (!Array.isArray(features) || features.length === 0) return features || [];
+        const allowed = allowedStandplaatsStatusesFromState();
+        if (allowed === null) return features;
+        const allowedSet = new Set(allowed);
+        return features.filter(f => {
+          const status = f?.properties?.status;
+          if (status == null || status === '') return true;
+          return allowedSet.has(status);
+        });
+      }
+      function applyLigplaatsStatusFilterToFeatures(features){
+        if (!Array.isArray(features) || features.length === 0) return features || [];
+        const allowed = allowedLigplaatsStatusesFromState();
+        if (allowed === null) return features;
+        const allowedSet = new Set(allowed);
+        return features.filter(f => {
+          const status = f?.properties?.status;
+          if (status == null || status === '') return true;
+          return allowedSet.has(status);
+        });
+      }
 
       // Tracks which bucket carets are currently expanded. Plain UI state —
       // not persisted across reloads. Default: all collapsed.
@@ -237,29 +290,88 @@ import {
         in_progress: false,
         gone: false,
       };
+      const standplaatsStatusBucketExpanded = { live: false, gone: false };
+      const ligplaatsStatusBucketExpanded = { live: false, gone: false };
 
-      function renderPandStatusControl(){
-        const sectionEl = document.getElementById('legendPandStatusSection');
-        const titleEl = document.getElementById('legendPandStatusTitle');
-        const summaryEl = document.getElementById('pandStatusSummary');
-        const bucketsEl = document.getElementById('pandStatusBuckets');
-        if (!(sectionEl && titleEl && summaryEl && bucketsEl)) return;
-
-        const features = activeBagKeys().includes('pand') ? getCachedBagFeatures('pand') : null;
-        if (!features){
-          sectionEl.style.display = 'none';
-          summaryEl.textContent = '';
-          bucketsEl.innerHTML = '';
-          return;
+      // Per-kind metadata for the BAG status card. Each entry tells the
+      // renderer which buckets to show, which state object to mutate, and
+      // which translation keys/filter helpers to call. The state and
+      // expanded references are returned via accessor closures so the
+      // live `let` bindings (pandStatusState etc.) stay in sync.
+      function getStatusKindMeta(kind){
+        if (kind === 'pand'){
+          return {
+            buckets: PAND_STATUS_BUCKETS,
+            knownStatuses: PAND_KNOWN_STATUSES,
+            trKeys: PAND_STATUS_TR_KEYS,
+            bucketDefs: [
+              { key: 'in_use',      labelKey: 'pandStatusBucketInUse' },
+              { key: 'in_progress', labelKey: 'pandStatusBucketInProgress' },
+              { key: 'gone',        labelKey: 'pandStatusBucketGone' },
+            ],
+            sectionTitleKey: 'bagStatusSectionPand',
+            cardTitleKey: 'legendPandStatusTitle',
+            showingKeys: {
+              ofTotal: 'pandStatusShowingOfTotal',
+              all:     'pandStatusShowingAll',
+              none:    'pandStatusShowingNone',
+            },
+            getState: () => pandStatusState,
+            expanded: pandStatusBucketExpanded,
+            applyFilter: applyPandStatusFilter,
+            unknownBucketKey: 'in_use',
+          };
         }
-        sectionEl.style.display = 'block';
-        titleEl.textContent = tr('legendPandStatusTitle');
+        if (kind === 'standplaats'){
+          return {
+            buckets: PLAATS_STATUS_BUCKETS,
+            knownStatuses: PLAATS_KNOWN_STATUSES,
+            trKeys: PLAATS_STATUS_TR_KEYS,
+            bucketDefs: [
+              { key: 'live', labelKey: 'plaatsStatusBucketLive' },
+              { key: 'gone', labelKey: 'plaatsStatusBucketGone' },
+            ],
+            sectionTitleKey: 'bagStatusSectionStandplaats',
+            cardTitleKey: 'legendStandplaatsStatusTitle',
+            showingKeys: {
+              ofTotal: 'plaatsStatusShowingOfTotal',
+              all:     'plaatsStatusShowingAll',
+              none:    'plaatsStatusShowingNone',
+            },
+            getState: () => standplaatsStatusState,
+            expanded: standplaatsStatusBucketExpanded,
+            applyFilter: applyStandplaatsStatusFilter,
+            unknownBucketKey: 'live',
+          };
+        }
+        // ligplaats — same vocabulary as standplaats but independent state.
+        return {
+          buckets: PLAATS_STATUS_BUCKETS,
+          knownStatuses: PLAATS_KNOWN_STATUSES,
+          trKeys: PLAATS_STATUS_TR_KEYS,
+          bucketDefs: [
+            { key: 'live', labelKey: 'plaatsStatusBucketLive' },
+            { key: 'gone', labelKey: 'plaatsStatusBucketGone' },
+          ],
+          sectionTitleKey: 'bagStatusSectionLigplaats',
+          cardTitleKey: 'legendLigplaatsStatusTitle',
+          showingKeys: {
+            ofTotal: 'plaatsStatusShowingOfTotal',
+            all:     'plaatsStatusShowingAll',
+            none:    'plaatsStatusShowingNone',
+          },
+          getState: () => ligplaatsStatusState,
+          expanded: ligplaatsStatusBucketExpanded,
+          applyFilter: applyLigplaatsStatusFilter,
+          unknownBucketKey: 'live',
+        };
+      }
 
-        // Per-status counts. Features with missing/unknown status are
-        // bundled into in_use (matches 7.1a's filter behavior, which
-        // treats missing status as in_use).
+      function renderBagStatusSection(parentEl, kind, features, showSectionTitle, isFirst){
+        const meta = getStatusKindMeta(kind);
+
         const statusCounts = Object.create(null);
-        for (const status of PAND_KNOWN_STATUSES) statusCounts[status] = 0;
+        for (const status of meta.knownStatuses) statusCounts[status] = 0;
         let unknownCount = 0;
         for (const f of features){
           const raw = f?.properties?.status;
@@ -270,47 +382,58 @@ import {
           }
         }
 
-        const bucketDefs = [
-          { key: 'in_use',      labelKey: 'pandStatusBucketInUse' },
-          { key: 'in_progress', labelKey: 'pandStatusBucketInProgress' },
-          { key: 'gone',        labelKey: 'pandStatusBucketGone' },
-        ];
         const bucketTotals = Object.create(null);
-        for (const { key } of bucketDefs){
+        for (const { key } of meta.bucketDefs){
           let total = 0;
-          for (const s of PAND_STATUS_BUCKETS[key]) total += statusCounts[s];
+          for (const s of meta.buckets[key]) total += statusCounts[s];
           bucketTotals[key] = total;
         }
-        // Unknown-status features count toward in_use for the summary,
-        // matching the filter's "missing status → show with in_use" rule.
-        bucketTotals.in_use += unknownCount;
+        // Unknown-status features count toward the default-on bucket for
+        // the summary, matching the filter's "missing status → always
+        // shown" rule in bagLayers.set*StatusFilter.
+        bucketTotals[meta.unknownBucketKey] += unknownCount;
 
-        const total = bucketTotals.in_use + bucketTotals.in_progress + bucketTotals.gone;
+        let total = 0;
+        for (const { key } of meta.bucketDefs) total += bucketTotals[key];
         let shown = unknownCount;
-        for (const s of PAND_KNOWN_STATUSES){
-          if (pandStatusState[s]) shown += statusCounts[s];
+        const stateRef = meta.getState();
+        for (const s of meta.knownStatuses){
+          if (stateRef[s]) shown += statusCounts[s];
         }
 
+        const sectionEl = document.createElement('div');
+        sectionEl.dataset.kind = kind;
+        if (!isFirst) sectionEl.style.marginTop = '10px';
+
+        if (showSectionTitle){
+          const sectionTitleEl = document.createElement('div');
+          sectionTitleEl.className = 'pandStatusCardTitle';
+          sectionTitleEl.textContent = tr(meta.sectionTitleKey);
+          sectionEl.appendChild(sectionTitleEl);
+        }
+
+        const sectionSummaryEl = document.createElement('div');
+        sectionSummaryEl.className = 'pandStatusSummary';
         let summaryText;
         if (total === 0){
-          summaryText = tr('pandStatusShowingNone');
+          summaryText = tr(meta.showingKeys.none);
         } else if (shown === total){
-          summaryText = tr('pandStatusShowingAll').replace('{total}', formatNumber(total));
+          summaryText = tr(meta.showingKeys.all).replace('{total}', formatNumber(total));
         } else if (shown === 0){
-          summaryText = tr('pandStatusShowingNone');
+          summaryText = tr(meta.showingKeys.none);
         } else {
-          summaryText = tr('pandStatusShowingOfTotal')
+          summaryText = tr(meta.showingKeys.ofTotal)
             .replace('{shown}', formatNumber(shown))
             .replace('{total}', formatNumber(total));
         }
-        summaryEl.textContent = summaryText;
+        sectionSummaryEl.textContent = summaryText;
+        sectionEl.appendChild(sectionSummaryEl);
 
-        bucketsEl.innerHTML = '';
-        for (const { key, labelKey } of bucketDefs){
-          const statuses = PAND_STATUS_BUCKETS[key];
+        for (const { key, labelKey } of meta.bucketDefs){
+          const statuses = meta.buckets[key];
           // Bucket visual is derived from per-status state.
-          const allOn  = statuses.every(s => pandStatusState[s]);
-          const allOff = statuses.every(s => !pandStatusState[s]);
+          const allOn  = statuses.every(s => stateRef[s]);
+          const allOff = statuses.every(s => !stateRef[s]);
 
           const bucketRow = document.createElement('div');
           bucketRow.className = 'pandStatusBucket';
@@ -321,7 +444,7 @@ import {
 
           const bucketCheckbox = document.createElement('input');
           bucketCheckbox.type = 'checkbox';
-          bucketCheckbox.id = `pandStatusBucketCb_${key}`;
+          bucketCheckbox.id = `${kind}StatusBucketCb_${key}`;
           bucketCheckbox.checked = allOn;
           bucketCheckbox.indeterminate = !allOn && !allOff;
 
@@ -334,11 +457,12 @@ import {
           countSpan.className = 'pandStatusCount';
           countSpan.textContent = `(${formatNumber(bucketTotals[key])})`;
 
+          const isExpanded = !!meta.expanded[key];
           const caret = document.createElement('span');
-          caret.className = 'pandStatusCaret' + (pandStatusBucketExpanded[key] ? ' is-open' : '');
+          caret.className = 'pandStatusCaret' + (isExpanded ? ' is-open' : '');
           caret.textContent = '▸';
           caret.setAttribute('role', 'button');
-          caret.setAttribute('aria-expanded', pandStatusBucketExpanded[key] ? 'true' : 'false');
+          caret.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
           caret.setAttribute('aria-label', tr(labelKey));
 
           header.appendChild(bucketCheckbox);
@@ -348,7 +472,7 @@ import {
           bucketRow.appendChild(header);
 
           const childrenEl = document.createElement('div');
-          childrenEl.className = 'pandStatusChildren' + (pandStatusBucketExpanded[key] ? ' is-open' : '');
+          childrenEl.className = 'pandStatusChildren' + (isExpanded ? ' is-open' : '');
 
           for (const status of statuses){
             const childRow = document.createElement('div');
@@ -356,12 +480,12 @@ import {
 
             const childCb = document.createElement('input');
             childCb.type = 'checkbox';
-            childCb.id = `pandStatusChildCb_${key}_${status.replace(/\W+/g, '_')}`;
-            childCb.checked = !!pandStatusState[status];
+            childCb.id = `${kind}StatusChildCb_${key}_${status.replace(/\W+/g, '_')}`;
+            childCb.checked = !!stateRef[status];
             childCb.dataset.bucket = key;
             childCb.dataset.status = status;
 
-            const trKey = PAND_STATUS_TR_KEYS[status];
+            const trKey = meta.trKeys[status];
             const labelText = trKey ? tr(trKey) : status;
 
             const childLabel = document.createElement('label');
@@ -382,8 +506,8 @@ import {
             childrenEl.appendChild(childRow);
 
             childCb.addEventListener('change', () => {
-              pandStatusState[status] = childCb.checked;
-              applyPandStatusFilter();
+              meta.getState()[status] = childCb.checked;
+              meta.applyFilter();
               // Re-aggregate the right panel (count + charts) from
               // cached features. refreshBagView short-circuits to cache
               // hits — no network requests are issued.
@@ -391,25 +515,67 @@ import {
             });
           }
           bucketRow.appendChild(childrenEl);
-          bucketsEl.appendChild(bucketRow);
+          sectionEl.appendChild(bucketRow);
 
           bucketCheckbox.addEventListener('change', () => {
             const next = bucketCheckbox.checked;
-            for (const s of statuses) pandStatusState[s] = next;
-            applyPandStatusFilter();
-            // Re-aggregate the right panel (count + charts) from
-            // cached features. refreshBagView short-circuits to cache
-            // hits — no network requests are issued.
+            const liveState = meta.getState();
+            for (const s of statuses) liveState[s] = next;
+            meta.applyFilter();
             refreshBagView().catch(err => console.warn('BAG refresh failed', err));
           });
 
           caret.addEventListener('click', () => {
-            pandStatusBucketExpanded[key] = !pandStatusBucketExpanded[key];
-            caret.classList.toggle('is-open', pandStatusBucketExpanded[key]);
-            childrenEl.classList.toggle('is-open', pandStatusBucketExpanded[key]);
-            caret.setAttribute('aria-expanded', pandStatusBucketExpanded[key] ? 'true' : 'false');
+            meta.expanded[key] = !meta.expanded[key];
+            caret.classList.toggle('is-open', meta.expanded[key]);
+            childrenEl.classList.toggle('is-open', meta.expanded[key]);
+            caret.setAttribute('aria-expanded', meta.expanded[key] ? 'true' : 'false');
           });
         }
+
+        parentEl.appendChild(sectionEl);
+      }
+
+      function renderBagStatusControl(){
+        const cardEl = document.getElementById('legendPandStatusSection');
+        const titleEl = document.getElementById('legendPandStatusTitle');
+        const summaryEl = document.getElementById('pandStatusSummary');
+        const bucketsEl = document.getElementById('pandStatusBuckets');
+        if (!(cardEl && titleEl && summaryEl && bucketsEl)) return;
+
+        const activeKeys = activeBagKeys();
+        const sections = [];
+        for (const kind of ['pand', 'standplaats', 'ligplaats']){
+          if (!activeKeys.includes(kind)) continue;
+          const features = getCachedBagFeatures(kind);
+          if (!features) continue;
+          sections.push({ kind, features });
+        }
+
+        if (sections.length === 0){
+          cardEl.style.display = 'none';
+          summaryEl.textContent = '';
+          bucketsEl.innerHTML = '';
+          return;
+        }
+
+        cardEl.style.display = 'block';
+        // The legacy single-summary slot above #pandStatusBuckets stays
+        // empty; per-section summaries are rendered inline so each
+        // object type gets its own "Showing X of Y" line.
+        summaryEl.textContent = '';
+
+        if (sections.length === 1){
+          titleEl.textContent = tr(getStatusKindMeta(sections[0].kind).cardTitleKey);
+        } else {
+          titleEl.textContent = tr('legendBagStatusTitle');
+        }
+
+        const showSectionTitles = sections.length > 1;
+        bucketsEl.innerHTML = '';
+        sections.forEach(({ kind, features }, idx) => {
+          renderBagStatusSection(bucketsEl, kind, features, showSectionTitles, idx === 0);
+        });
       }
 
       function retryAttemptMessage(label, attempt, totalAttempts, delayMs){
@@ -463,6 +629,8 @@ import {
         allBagRenderableLayerIds, allDataRenderableLayerIds,
         bagKeyFromLayerId, setBagKeyData, setBagKeyVisibility,
         setPandStatusFilter,
+        setStandplaatsStatusFilter,
+        setLigplaatsStatusFilter,
         clearAllBagLayers, ensureBagFeatureLayers,
         bagCacheKey, bagLevelLabel,
       } = createBagLayers({ map, bagToggleEls, tr });
@@ -511,13 +679,15 @@ import {
         renderBagLayerSummary, clearBagSummaryPanel, collectionLabel,
       } = legendApi;
       initCharts({
-        // Pand reads are filtered by current status bucket state. Other
-        // BAG keys (verblijfsobject etc.) pass through unchanged — the
-        // status filter is pand-specific (see Tier 7.1a).
+        // BAG keys with a status filter (pand, standplaats, ligplaats)
+        // are narrowed to the current bucket state before charts read
+        // them. Other BAG keys pass through unchanged.
         getCachedBagFeatures: (key) => {
           const raw = getCachedBagFeatures(key);
-          if (key !== 'pand') return raw;
-          return applyPandStatusFilterToFeatures(raw);
+          if (key === 'pand') return applyPandStatusFilterToFeatures(raw);
+          if (key === 'standplaats') return applyStandplaatsStatusFilterToFeatures(raw);
+          if (key === 'ligplaats') return applyLigplaatsStatusFilterToFeatures(raw);
+          return raw;
         },
         getActiveBagKeys: activeBagKeys,
         getActiveMapVisualization: () => activeMapVisualization,
@@ -863,7 +1033,9 @@ import {
           }
         }
         applyPandStatusFilter();
-        renderPandStatusControl();
+        applyStandplaatsStatusFilter();
+        applyLigplaatsStatusFilter();
+        renderBagStatusControl();
         updateVizButtons();
         updateVizLegend();
         legendController.updateLegendContext();
@@ -1174,11 +1346,11 @@ import {
         }
 
         if (reqId !== bagFeatureRequestId) return;
-        // Pand status filter narrows the visible count for pand so the
-        // right-panel "Loaded BAG objects" line matches the map. Only
-        // narrow when actual features are cached (wijk/buurt level);
-        // at higher levels the count comes from a backend summary and
-        // there are no features to filter against.
+        // Status filters narrow the visible count for pand, standplaats,
+        // and ligplaats so the right-panel "Loaded BAG objects" line
+        // matches the map. Only narrow when actual features are cached
+        // (wijk/buurt level); at higher levels the count comes from a
+        // backend summary and there are no features to filter against.
         if (typeof countsByKey['pand'] === 'number'){
           const cachedPand = getCachedBagFeatures('pand');
           if (Array.isArray(cachedPand) && cachedPand.length > 0){
@@ -1190,6 +1362,28 @@ import {
             }
           }
         }
+        if (typeof countsByKey['standplaats'] === 'number'){
+          const cachedStandplaats = getCachedBagFeatures('standplaats');
+          if (Array.isArray(cachedStandplaats) && cachedStandplaats.length > 0){
+            const filteredCount = applyStandplaatsStatusFilterToFeatures(cachedStandplaats).length;
+            countsByKey['standplaats'] = filteredCount;
+            const standplaatsLabel = collectionLabel(BAG_COLLECTIONS.standplaats);
+            for (const r of rows){
+              if (r.label === standplaatsLabel && typeof r.count === 'number') r.count = filteredCount;
+            }
+          }
+        }
+        if (typeof countsByKey['ligplaats'] === 'number'){
+          const cachedLigplaats = getCachedBagFeatures('ligplaats');
+          if (Array.isArray(cachedLigplaats) && cachedLigplaats.length > 0){
+            const filteredCount = applyLigplaatsStatusFilterToFeatures(cachedLigplaats).length;
+            countsByKey['ligplaats'] = filteredCount;
+            const ligplaatsLabel = collectionLabel(BAG_COLLECTIONS.ligplaats);
+            for (const r of rows){
+              if (r.label === ligplaatsLabel && typeof r.count === 'number') r.count = filteredCount;
+            }
+          }
+        }
         legendController.updateBagLegend(activeKeys, countsByKey, showMap);
         renderBagLayerSummary(rows, areaFeature, level, partialKeys, showMap, failedKeys.length ? retryFailedMessage(failedKeys) : '');
         renderBagCharts();
@@ -1197,7 +1391,7 @@ import {
       }
 
 
-      map.on("load", async ()=>{ map.fitBounds(NL_BOUNDS, { padding: NL_FIT_PADDING, duration: 0, animate: false }); ensureWhiteBackground(); const beforeId = firstNonBackgroundLayerId(); try{ await ensureBrtLayer(beforeId); await addOutsideNlMask(beforeId); await addWorldCountryOutlines(beforeId); }catch(err){ console.warn(err); } setBasemap("brt"); hideBrkMunicipalityLayers(); addAdminSourcesAndLayers(); ensureBagFeatureLayers(); applyPandStatusFilter(); renderPandStatusControl(); updateAllBoundaryToggleButtons(); applyBoundaryLayerVisibility(); enforceBoundaryStackOrder(); try{ await loadAdminData(); enforceBoundaryStackOrder(); }catch(err){ console.error(err); selProvincieEl.innerHTML = `<option value="">${tr("loadFailedProvinces")}</option>`; selGemeenteEl.innerHTML = `<option value="">${tr("loadFailedMunicipalities")}</option>`; resetWijkSelect(tr("loadFailedShort")); resetBuurtSelect(tr("loadFailedShort")); }
+      map.on("load", async ()=>{ map.fitBounds(NL_BOUNDS, { padding: NL_FIT_PADDING, duration: 0, animate: false }); ensureWhiteBackground(); const beforeId = firstNonBackgroundLayerId(); try{ await ensureBrtLayer(beforeId); await addOutsideNlMask(beforeId); await addWorldCountryOutlines(beforeId); }catch(err){ console.warn(err); } setBasemap("brt"); hideBrkMunicipalityLayers(); addAdminSourcesAndLayers(); ensureBagFeatureLayers(); applyPandStatusFilter(); applyStandplaatsStatusFilter(); applyLigplaatsStatusFilter(); renderBagStatusControl(); updateAllBoundaryToggleButtons(); applyBoundaryLayerVisibility(); enforceBoundaryStackOrder(); try{ await loadAdminData(); enforceBoundaryStackOrder(); }catch(err){ console.error(err); selProvincieEl.innerHTML = `<option value="">${tr("loadFailedProvinces")}</option>`; selGemeenteEl.innerHTML = `<option value="">${tr("loadFailedMunicipalities")}</option>`; resetWijkSelect(tr("loadFailedShort")); resetBuurtSelect(tr("loadFailedShort")); }
         resetController.resetToNationalView = () => { state.provinceStatcode = ""; state.gemeenteStatcode = ""; state.gmCode = ""; state.wijkStatcode = ""; state.buurtStatcode = ""; selProvincieEl.value = ""; selGemeenteEl.value = ""; selWijkEl.value = ""; selBuurtEl.value = ""; resetMunicipalitySelect(); resetWijkSelect(); resetBuurtSelect(); applyLayerFilters(); legendController.updateInfoBox(); closeBagPopup(); };
         selProvincieEl.addEventListener("change", ()=> selectProvince(selProvincieEl.value, true));
         selGemeenteEl.addEventListener("change", ()=> selectMunicipality(selGemeenteEl.value, true));

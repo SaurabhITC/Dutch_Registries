@@ -183,3 +183,25 @@ export const PAND_KNOWN_STATUSES = [
   ...PAND_STATUS_BUCKETS.in_progress,
   ...PAND_STATUS_BUCKETS.gone,
 ];
+
+// BAG status vocabulary for standplaats AND ligplaats — both object
+// types use the same field values. Two buckets: 'live' (designated /
+// issued, default visible) and 'gone' (withdrawn / never realized /
+// registered in error, default hidden). No "in progress" bucket
+// because these objects don't have construction phases.
+export const PLAATS_STATUS_BUCKETS = {
+  live: [
+    'Plaats aangewezen',
+    'Plaats uitgegeven',
+  ],
+  gone: [
+    'Niet gerealiseerde plaats',
+    'Plaats ingetrokken',
+    'Plaats ten onrechte opgevoerd',
+  ],
+};
+
+export const PLAATS_KNOWN_STATUSES = [
+  ...PLAATS_STATUS_BUCKETS.live,
+  ...PLAATS_STATUS_BUCKETS.gone,
+];

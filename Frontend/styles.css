@@ -842,28 +842,54 @@
       position: absolute;
       left: 16px;
       bottom: 16px;
+      /* Cap the top edge of the entire stack so it never reaches the
+         top-left map controls. The implicit max-height is bottom-top
+         and adapts automatically to the viewport. */
+      top: 110px;
       display: flex;
       flex-direction: column;
+      justify-content: flex-end;
       gap: 8px;
       z-index: 2;
+      width: auto;
       max-width: 320px;
       pointer-events: none;
+      overflow: hidden;
     }
     .mapBottomLeftStack > *{
       pointer-events: auto;
     }
-    .legend{
-      width:auto;
+    .pandStatusCard{
+      width: auto;
+      /* Take only as much space as needed, but shrink (and reveal the
+         scrollbar) when the wrapper runs out of room. The legend is
+         flex: 0 0 auto so it always wins; the status card scrolls. */
+      flex: 0 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      overscroll-behavior: contain;
       border-radius: 14px;
       border: 1px solid var(--stroke);
       background: rgba(255,255,255,0.86);
       backdrop-filter: blur(12px);
       box-shadow: var(--shadowSoft);
       padding: 8px 9px;
-      overflow: visible;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(15,23,42,0.20) transparent;
     }
-    .pandStatusCard{
+    .pandStatusCard::-webkit-scrollbar{ width: 6px; }
+    .pandStatusCard::-webkit-scrollbar-track{ background: transparent; }
+    .pandStatusCard::-webkit-scrollbar-thumb{
+      background: rgba(15,23,42,0.20);
+      border-radius: 3px;
+    }
+    .pandStatusCard::-webkit-scrollbar-thumb:hover{
+      background: rgba(15,23,42,0.35);
+    }
+    .legend{
       width: auto;
+      flex: 0 0 auto;
       border-radius: 14px;
       border: 1px solid var(--stroke);
       background: rgba(255,255,255,0.86);
@@ -1437,9 +1463,8 @@
         max-height:28vh;
       }
       .mapBottomLeftStack{
-        right:10px;
         bottom:44px;
-        max-width:178px;
+        max-width:180px;
       }
     }
 
@@ -1450,6 +1475,6 @@
     }
     @media (max-width: 520px){
       header{height:72px;}
-      .mapBottomLeftStack{max-width: 180px;}
+      .mapBottomLeftStack{max-width: 160px;}
     }
   
