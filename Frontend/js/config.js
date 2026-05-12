@@ -84,9 +84,9 @@ export const BOUWJAAR_BUCKETS = [
 
 // 14-stop spectral ramp for the bouwjaar CHART (one color per decade bin).
 // Aligned to BOUWJAAR_BUCKETS order: index 0 = <1900 (oldest, dark red)
-// through index 13 = 2020+ (newest, deep purple). The MAP uses a coarser
-// 6-band palette in app.js — these two are intentionally separate until
-// bin boundaries are unified.
+// through index 13 = 2020+ (newest, deep purple). The MAP uses
+// BOUWJAAR_MAP_COLORS below — same spectral arc but with the pale middle
+// sharpened for visibility against the basemap.
 export const BOUWJAAR_CHART_COLORS = [
   '#67001f', // <1900       — oldest, dark red
   '#a50026', // 1900-1909
@@ -102,6 +102,30 @@ export const BOUWJAAR_CHART_COLORS = [
   '#313695', // 2000-2009
   '#5e4fa2', // 2010-2019
   '#3f007d', // 2020+       — newest, deep purple
+];
+
+// 14-stop spectral ramp for the bouwjaar MAP layer. Same spectral arc
+// as BOUWJAAR_CHART_COLORS (chart) but with the pale 1940s-1960s middle
+// colors sharpened so every decade is visible against the BRT basemap.
+// Chart and map both follow BOUWJAAR_BUCKETS order: index 0 = <1900,
+// index 13 = 2020+. Adjacent indices stay in the same hue family
+// (e.g. 1970-79 and 1980-89 both light/medium blue) so a user
+// comparing map and chart can still match decade-to-decade.
+export const BOUWJAAR_MAP_COLORS = [
+  '#67001f', // <1900       — oldest, dark red    (same as chart)
+  '#a50026', // 1900-1909   — dark red            (same)
+  '#d73027', // 1910-1919   — red                 (same)
+  '#f46d43', // 1920-1929   — orange-red          (same)
+  '#fdae61', // 1930-1939   — orange              (same)
+  '#fed976', // 1940-1949   — sharper yellow      (was #fee090)
+  '#feb24c', // 1950-1959   — amber               (was #ffffbf — too pale)
+  '#9ecae1', // 1960-1969   — light blue          (was #e0f3f8 — too pale)
+  '#6baed6', // 1970-1979   — medium light blue   (was #abd9e9)
+  '#3182bd', // 1980-1989   — medium blue         (was #74add1)
+  '#08519c', // 1990-1999   — dark blue           (was #4575b4)
+  '#54278f', // 2000-2009   — purple              (was #313695)
+  '#3f007d', // 2010-2019   — deep purple         (was #5e4fa2)
+  '#1e0040', // 2020+       — darkest purple      (was #3f007d)
 ];
 
 export const OPPERVLAKTE_BUCKETS = [

@@ -1400,6 +1400,17 @@
       gap:4px;
       margin-top:6px;
     }
+    .legendVizRows.is-twocol{
+      display:block;
+      column-count: 2;
+      column-gap: 10px;
+      column-fill: balance;
+      gap: 4px;
+    }
+    .legendVizRows.is-twocol .legendVizRow{
+      break-inside: avoid;
+      margin-bottom: 4px;
+    }
     .legendVizRow{
       display:flex;
       align-items:center;

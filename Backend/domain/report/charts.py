@@ -35,6 +35,26 @@ GEBRUIKSDOEL_COLORS: Dict[str, str] = {
     "overige gebruiksfunctie": "#9ca3af",
 }
 
+# 14-stop bouwjaar map colors — must match BOUWJAAR_MAP_COLORS in
+# Frontend/js/config.js so the PDF chart matches the on-screen chart
+# and the on-screen map.
+BOUWJAAR_COLORS: List[str] = [
+    "#67001f",
+    "#a50026",
+    "#d73027",
+    "#f46d43",
+    "#fdae61",
+    "#fed976",
+    "#feb24c",
+    "#9ecae1",
+    "#6baed6",
+    "#3182bd",
+    "#08519c",
+    "#54278f",
+    "#3f007d",
+    "#1e0040",
+]
+
 
 def aggregate_bouwjaar(features: List[Dict[str, Any]]) -> List[int]:
     counts = [0] * len(BOUWJAAR_BUCKETS)
@@ -150,6 +170,7 @@ def render_bouwjaar_chart(features: List[Dict[str, Any]], lang: str) -> Optional
         ylabel=_t(lang, "axis_count"),
         cmap_name="Spectral_r",
         rotate_x=45,
+        colors=BOUWJAAR_COLORS,
     )
 
 

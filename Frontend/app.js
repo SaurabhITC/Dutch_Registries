@@ -18,6 +18,7 @@ import {
   AUTO_RETRY_DELAYS_MS,
   BAG_FETCH_CONCURRENCY,
   BOUWJAAR_BUCKETS,
+  BOUWJAAR_MAP_COLORS,
   OPPERVLAKTE_BUCKETS,
   GEBRUIKSDOEL_CATEGORIES,
   PAND_STATUS_BUCKETS,
@@ -524,7 +525,7 @@ import {
         getCurrentBagAreaFeature,
         formatNumber,
         getPalettes: () => ({
-          bouwjaar: VIZ_PALETTE_BOUWJAAR,
+          bouwjaar: BOUWJAAR_MAP_COLORS,
           gebruiksdoel: VIZ_PALETTE_GEBRUIKSDOEL,
           oppervlakte: VIZ_PALETTE_OPPERVLAKTE,
         }),
@@ -612,15 +613,9 @@ import {
       // updateLegendContext reads it.
 
       // ColorBrewer-derived palettes. Hex codes match the spec exactly.
-      const VIZ_PALETTE_BOUWJAAR = {
-        preBefore1900:  '#8c2d04',  // dark red-brown — pre-1900, historical
-        band1900_1944:  '#d94801',  // burnt orange
-        band1945_1969:  '#f7d96b',  // warm yellow
-        band1970_1989:  '#7fbc41',  // green
-        band1990_2009:  '#4393c3',  // medium blue
-        band2010Plus:   '#3f007d',  // deep purple — newest, modern
-        unknown:        '#bdbdbd',  // unchanged grey
-      };
+      // Bouwjaar uses BOUWJAAR_MAP_COLORS from config.js (14 decade stops
+      // matching BOUWJAAR_BUCKETS, with the chart's pale middle sharpened
+      // for basemap visibility — see config.js for the swap rationale).
       const VIZ_PALETTE_GEBRUIKSDOEL = {
         woonfunctie:            '#fde047',  // residential — yellow
         winkelfunctie:          '#ef4444',  // retail — red
@@ -655,24 +650,30 @@ import {
       // ---------- MapLibre paint expressions ----------
 
       function vizExpressionBouwjaar(){
+        // 14 decade classes matching BOUWJAAR_BUCKETS exactly.
+        // Step expression: < 1900 → index 0; 1900-1909 → 1; ...; 2020+ → 13.
+        // Missing/unknown bouwjaar → grey 'unknown' color.
         return [
           'case',
-          ['any',
-            ['!', ['has', 'bouwjaar']],
-            ['==', ['get', 'bouwjaar'], null],
-            ['<=', ['to-number', ['get', 'bouwjaar'], 0], 0],
-            ['>=', ['to-number', ['get', 'bouwjaar'], 0], 9000],
-          ],
-          VIZ_PALETTE_BOUWJAAR.unknown,
+          ['any', ['!', ['has', 'bouwjaar']], ['==', ['get', 'bouwjaar'], null]],
+          '#bdbdbd',  // unknown — keep existing grey
           [
             'step',
             ['to-number', ['get', 'bouwjaar']],
-            VIZ_PALETTE_BOUWJAAR.preBefore1900,
-            1900, VIZ_PALETTE_BOUWJAAR.band1900_1944,
-            1945, VIZ_PALETTE_BOUWJAAR.band1945_1969,
-            1970, VIZ_PALETTE_BOUWJAAR.band1970_1989,
-            1990, VIZ_PALETTE_BOUWJAAR.band1990_2009,
-            2010, VIZ_PALETTE_BOUWJAAR.band2010Plus,
+            BOUWJAAR_MAP_COLORS[0],   // < 1900
+            1900, BOUWJAAR_MAP_COLORS[1],   // 1900-1909
+            1910, BOUWJAAR_MAP_COLORS[2],   // 1910-1919
+            1920, BOUWJAAR_MAP_COLORS[3],   // 1920-1929
+            1930, BOUWJAAR_MAP_COLORS[4],   // 1930-1939
+            1940, BOUWJAAR_MAP_COLORS[5],   // 1940-1949
+            1950, BOUWJAAR_MAP_COLORS[6],   // 1950-1959
+            1960, BOUWJAAR_MAP_COLORS[7],   // 1960-1969
+            1970, BOUWJAAR_MAP_COLORS[8],   // 1970-1979
+            1980, BOUWJAAR_MAP_COLORS[9],   // 1980-1989
+            1990, BOUWJAAR_MAP_COLORS[10],  // 1990-1999
+            2000, BOUWJAAR_MAP_COLORS[11],  // 2000-2009
+            2010, BOUWJAAR_MAP_COLORS[12],  // 2010-2019
+            2020, BOUWJAAR_MAP_COLORS[13],  // 2020+
           ],
         ];
       }
@@ -897,51 +898,47 @@ import {
           sectionEl.style.display = 'none';
           titleEl.textContent = '';
           rowsEl.innerHTML = '';
+          rowsEl.classList.remove('is-twocol');
           return;
         }
         let title = '';
-        let rows = '';
+        const rowList = [];
         if (activeMapVisualization === 'bouwjaar'){
           title = tr('vizLegendTitleBouwjaar');
-          rows =
-            vizLegendRowHtml(VIZ_PALETTE_BOUWJAAR.preBefore1900, '< 1900') +
-            vizLegendRowHtml(VIZ_PALETTE_BOUWJAAR.band1900_1944, '1900-1944') +
-            vizLegendRowHtml(VIZ_PALETTE_BOUWJAAR.band1945_1969, '1945-1969') +
-            vizLegendRowHtml(VIZ_PALETTE_BOUWJAAR.band1970_1989, '1970-1989') +
-            vizLegendRowHtml(VIZ_PALETTE_BOUWJAAR.band1990_2009, '1990-2009') +
-            vizLegendRowHtml(VIZ_PALETTE_BOUWJAAR.band2010Plus,  '2010+') +
-            vizLegendRowHtml(VIZ_PALETTE_BOUWJAAR.unknown,       tr('vizLegendUnknown'));
+          BOUWJAAR_BUCKETS.forEach((bucket, i) => {
+            rowList.push(vizLegendRowHtml(BOUWJAAR_MAP_COLORS[i], bucket.label));
+          });
+          rowList.push(vizLegendRowHtml('#bdbdbd', tr('vizLegendUnknown')));
         } else if (activeMapVisualization === 'gebruiksdoel'){
           title = tr('vizLegendTitleGebruiksdoel');
-          rows =
-            vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.woonfunctie,            tr('gebruiksdoelWoonfunctie')) +
-            vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.winkelfunctie,          tr('gebruiksdoelWinkelfunctie')) +
-            vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.kantoorfunctie,         tr('gebruiksdoelKantoorfunctie')) +
-            vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.industriefunctie,       tr('gebruiksdoelIndustriefunctie')) +
-            vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.onderwijsfunctie,       tr('gebruiksdoelOnderwijsfunctie')) +
-            vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.gezondheidszorgfunctie, tr('gebruiksdoelGezondheidszorgfunctie')) +
-            vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.sportfunctie,           tr('gebruiksdoelSportfunctie')) +
-            vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.logiesfunctie,          tr('gebruiksdoelLogiesfunctie')) +
-            vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.bijeenkomstfunctie,     tr('gebruiksdoelBijeenkomstfunctie')) +
-            vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.celfunctie,             tr('gebruiksdoelCelfunctie')) +
-            vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.overige,                tr('vizLegendOverige')) +
-            vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.unknown,                tr('vizLegendUnknown'));
+          rowList.push(vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.woonfunctie,            tr('gebruiksdoelWoonfunctie')));
+          rowList.push(vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.winkelfunctie,          tr('gebruiksdoelWinkelfunctie')));
+          rowList.push(vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.kantoorfunctie,         tr('gebruiksdoelKantoorfunctie')));
+          rowList.push(vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.industriefunctie,       tr('gebruiksdoelIndustriefunctie')));
+          rowList.push(vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.onderwijsfunctie,       tr('gebruiksdoelOnderwijsfunctie')));
+          rowList.push(vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.gezondheidszorgfunctie, tr('gebruiksdoelGezondheidszorgfunctie')));
+          rowList.push(vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.sportfunctie,           tr('gebruiksdoelSportfunctie')));
+          rowList.push(vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.logiesfunctie,          tr('gebruiksdoelLogiesfunctie')));
+          rowList.push(vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.bijeenkomstfunctie,     tr('gebruiksdoelBijeenkomstfunctie')));
+          rowList.push(vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.celfunctie,             tr('gebruiksdoelCelfunctie')));
+          rowList.push(vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.overige,                tr('vizLegendOverige')));
+          rowList.push(vizLegendRowHtml(VIZ_PALETTE_GEBRUIKSDOEL.unknown,                tr('vizLegendUnknown')));
         } else if (activeMapVisualization === 'oppervlakte'){
           title = tr('vizLegendTitleOppervlakte');
-          rows =
-            vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_lt50,    '< 50 m²') +
-            vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_50_75,   '50-75 m²') +
-            vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_75_100,  '75-100 m²') +
-            vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_100_150, '100-150 m²') +
-            vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_150_250, '150-250 m²') +
-            vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_250plus, '250+ m²') +
-            vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.unknown,      tr('vizLegendUnknown'));
+          rowList.push(vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_lt50,    '< 50 m²'));
+          rowList.push(vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_50_75,   '50-75 m²'));
+          rowList.push(vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_75_100,  '75-100 m²'));
+          rowList.push(vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_100_150, '100-150 m²'));
+          rowList.push(vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_150_250, '150-250 m²'));
+          rowList.push(vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.band_250plus, '250+ m²'));
+          rowList.push(vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.unknown,      tr('vizLegendUnknown')));
           if (activeBagKeys().includes('pand')){
-            rows += vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.noData, tr('vizLegendNoData'));
+            rowList.push(vizLegendRowHtml(VIZ_PALETTE_OPPERVLAKTE.noData, tr('vizLegendNoData')));
           }
         }
         titleEl.textContent = title;
-        rowsEl.innerHTML = rows;
+        rowsEl.innerHTML = rowList.join('');
+        rowsEl.classList.toggle('is-twocol', rowList.length >= 8);
         sectionEl.style.display = 'block';
       }
 
