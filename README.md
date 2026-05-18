@@ -21,7 +21,7 @@ docker compose up --build
 
 Open http://localhost:8000 (or your server's address on a remote host).
 On first use, the backend lazily fetches and caches CBS boundaries and BAG
-features from PDOK — each cold area takes 10-40 seconds. Subsequent requests
+features from PDOK - each cold area takes 10-40 seconds. Subsequent requests
 are served from the on-disk cache.
 
 To pre-build the BAG pand summary store (recommended, otherwise building
